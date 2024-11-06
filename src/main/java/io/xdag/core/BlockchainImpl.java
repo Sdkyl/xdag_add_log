@@ -95,10 +95,10 @@ public class BlockchainImpl implements Blockchain {
     /**
      * 非Extra orphan存放
      */
-    private final OrphanBlockStore orphanBlockStore;
+    private final OrphanBlockStore orphanBlockStore;//非extra块存储进这
 
-    private final LinkedHashMap<Bytes, Block> memOrphanPool = new LinkedHashMap<>();
-    private final Map<Bytes, Integer> memOurBlocks = new ConcurrentHashMap<>();
+    private final LinkedHashMap<Bytes, Block> memOrphanPool = new LinkedHashMap<>();//memOrphanPool,存extra块
+    private final Map<Bytes, Integer> memOurBlocks = new ConcurrentHashMap<>();//hash ->秘钥索引
     private final XdagStats xdagStats;
     private final Kernel kernel;
 
@@ -107,7 +107,7 @@ public class BlockchainImpl implements Blockchain {
 
     private final ScheduledExecutorService checkLoop;
     private final RandomX randomx;
-    private final List<Listener> listeners = Lists.newArrayList();
+    private final List<Listener> listeners = Lists.newArrayList();//xdagPow在其中
     private ScheduledFuture<?> checkLoopFuture;
     private final long snapshotHeight;
     private SnapshotStore snapshotStore;
@@ -120,13 +120,13 @@ public class BlockchainImpl implements Blockchain {
     public BlockchainImpl(Kernel kernel) {
         this.kernel = kernel;
         this.wallet = kernel.getWallet();
-        this.xdagExtStats = new XdagExtStats();
+        this.xdagExtStats = new XdagExtStats();//出块状态，跟算力显示有关，还未赋值
         // 1. init chain state from rocksdb
         this.addressStore = kernel.getAddressStore();
         this.blockStore = kernel.getBlockStore();
         this.orphanBlockStore = kernel.getOrphanBlockStore();
         this.txHistoryStore = kernel.getTxHistoryStore();
-        snapshotHeight = kernel.getConfig().getSnapshotSpec().getSnapshotHeight();
+        snapshotHeight = kernel.getConfig().getSnapshotSpec().getSnapshotHeight();//若是快照启动，会给
 //        this.filter = new Filter(blockStore);
 
         // 2. if enable snapshot, init snapshot from rocksdb
@@ -134,10 +134,13 @@ public class BlockchainImpl implements Blockchain {
                 && kernel.getConfig().getSnapshotSpec().getSnapshotHeight() > 0
                 // 没有快照启动过
                 && !blockStore.isSnapshotBoot()) {
-            this.xdagStats = new XdagStats();
+            this.xdagStats = new XdagStats();//快照启动，先把节点状态初始化
             this.xdagTopStatus = new XdagTopStatus();
 
             if (kernel.getConfig().getSnapshotSpec().isSnapshotJ()) {
+                //用"SNAPSHOT/ADDRESS"里的完整地址引用数据，更新地址引用db，并将这些地址引用，存为交易历史，类型XDAG_FIELD_SNAPSHOT，顺手计算了本钱包的余额，以及全网账户总余额
+                //将"SNAPSHOT/BLOCKS"里面的完整的blockInfo信息，存入blockStore，如果是自己出的块则改其标志位再存，再将这些区块做成区块引用，类型做为XDAG_FIELD_SNAPSHOT，存入了交易历史中，再顺手把区块里的总金额算出来了，以及属于自己的区块里的金额
+                //更新xdagStats，xdagTopStatus
                 initSnapshotJ();
             }
 
@@ -145,7 +148,7 @@ public class BlockchainImpl implements Blockchain {
             blockStore.saveXdagTopStatus(xdagTopStatus);
             blockStore.saveXdagStatus(xdagStats);
         } else {
-            XdagStats storedStats = blockStore.getXdagStatus();
+            XdagStats storedStats = blockStore.getXdagStatus();//节点各项数据的状态
             XdagTopStatus storedTopStatus = blockStore.getXdagTopStatus();
             if (storedStats != null) {
                 storedStats.setNwaitsync(0);
@@ -162,7 +165,7 @@ public class BlockchainImpl implements Blockchain {
                 xdagTopStatus.setTop(lastBlock.getHashLow().toArray());
                 xdagTopStatus.setTopDiff(lastBlock.getInfo().getDifficulty());
             }
-            preSeed = blockStore.getPreSeed();
+            preSeed = blockStore.getPreSeed();//可能是帮助生成快照的初始种子数据。
         }
 
         // add randomx utils
@@ -171,25 +174,29 @@ public class BlockchainImpl implements Blockchain {
             randomx.setBlockchain(this);
         }
 
-        checkLoop = new ScheduledThreadPoolExecutor(1, factory);
-        // 检查主块链
-        this.startCheckMain(1024);
+        checkLoop = new ScheduledThreadPoolExecutor(1, factory);//一个执行任务的线程
+
+        this.startCheckMain(1024);//根据账本状态，干不同的事
     }
 
+    //用"SNAPSHOT/ADDRESS"里的完整地址引用数据，更新地址引用db，并将这些地址引用，存为交易历史，类型XDAG_FIELD_SNAPSHOT，顺手计算了本钱包的余额，以及全网账户总余额
+    //将"SNAPSHOT/BLOCKS"里面的完整的blockInfo信息，存入blockStore，如果是自己出的块则改其标志位再存，再将这些区块做成区块引用，类型做为XDAG_FIELD_SNAPSHOT，存入了交易历史中，再顺手把区块里的总金额算出来了，以及属于自己的区块里的金额
+    //更新xdagStats，xdagTopStatus
     public void initSnapshotJ() {
         long start = System.currentTimeMillis();
         System.out.println("init snapshot...");
 
-        RocksdbKVSource snapshotAddressSource = new RocksdbKVSource("SNAPSHOT/ADDRESS");
-        snapshotAddressStore = new SnapshotStoreImpl(snapshotAddressSource);
+        RocksdbKVSource snapshotAddressSource = new RocksdbKVSource("SNAPSHOT/ADDRESS");//已经复制了之前，所以这里面有数据
+        snapshotAddressStore = new SnapshotStoreImpl(snapshotAddressSource);//这里面的SnapshotStoreImpl的snapshotSource是这个"SNAPSHOT/ADDRESS"数据库，来自"ADDRESS"库的复制
         snapshotAddressSource.setConfig(kernel.getConfig());
         snapshotAddressSource.init();
+        //用"SNAPSHOT/ADDRESS"里的完整地址引用数据，更新地址引用db，并将这些地址引用，存为交易历史，类型XDAG_FIELD_SNAPSHOT，顺手计算了本钱包的余额，以及全网账户总余额
         snapshotAddressStore.saveAddress(this.blockStore, this.addressStore, this.txHistoryStore, kernel.getWallet().getAccounts(), kernel.getConfig().getSnapshotSpec().getSnapshotTime());
-
-        RocksdbKVSource snapshotSource = new RocksdbKVSource("SNAPSHOT/BLOCKS");
-        snapshotStore = new SnapshotStoreImpl(snapshotSource);
+        RocksdbKVSource snapshotSource = new RocksdbKVSource("SNAPSHOT/BLOCKS");//有做快照时拿到的，"SNAPSHOT/BLOCKS"->blockInfo
+        snapshotStore = new SnapshotStoreImpl(snapshotSource);//又创一个SnapshotStoreImpl实例
         snapshotSource.setConfig(kernel.getConfig());
         snapshotStore.init();
+        //将"SNAPSHOT/BLOCKS"里面的完整的blockInfo信息，存入blockStore，如果是自己出的块则改其标志位再存，再将这些区块做成区块引用，类型做为XDAG_FIELD_SNAPSHOT，存入了交易历史中，再顺手把区块里的总金额算出来了，以及属于自己的区块里的金额
         snapshotStore.saveSnapshotToIndex(this.blockStore, this.txHistoryStore, kernel.getWallet().getAccounts(), kernel.getConfig().getSnapshotSpec().getSnapshotTime());
         Block lastBlock = blockStore.getBlockByHeight(snapshotHeight);
 
@@ -255,7 +262,7 @@ public class BlockchainImpl implements Blockchain {
             if (block.getTimestamp() > (XdagTime.getCurrentTimestamp() + MAIN_CHAIN_PERIOD / 4)
                     || block.getTimestamp() < kernel.getConfig().getXdagEra()
 //                    || (limit && timestamp - tmpNodeBlock.time > limit)
-            ) {
+            ) {//区块时间大于当前时间＋16s，或者又小于纪元时间，则不合法
                 result = ImportResult.INVALID_BLOCK;
                 result.setErrorInfo("Block's time is illegal");
                 log.debug("Block's time is illegal");
@@ -266,15 +273,15 @@ public class BlockchainImpl implements Blockchain {
                 return ImportResult.EXIST;
             }
 
-            if (isExistInMem(block.getHashLow())) {
+            if (isExistInMem(block.getHashLow())) {//池，map
                 return ImportResult.IN_MEM;
             }
 
             if (isExtraBlock(block)) {
-                updateBlockFlag(block, BI_EXTRA, true);
+                updateBlockFlag(block, BI_EXTRA, true);//epoch末期，nonce不为空，且未保存(第一次进这方法)，标上BI_EXTRA
             }
 
-            List<Address> all = block.getLinks().stream().distinct().toList();
+            List<Address> all = block.getLinks().stream().distinct().toList();//去重
             // TODO：新地址转账判断inputs的地址余额是否足够
             // 检查区块的引用区块是否都存在,对所有input和output放入block（可能在pending或db中取出）
             for (Address ref : all) {
@@ -282,7 +289,7 @@ public class BlockchainImpl implements Blockchain {
                  Now transactionBlock's outputs are new address so ref.isAddress == false which means no blocks
                  mainBlocks and linkBlocks are same as original
                  */
-                if (ref != null && !ref.isAddress) {
+                if (ref != null && !ref.isAddress) {//区块引用，1.out类型，区块里面不能有钱。2.本地没存引用区块的话，返回NO_PARENT。3.引用区块时间不能早于区块。4.in类型，区块引用里的钱至少得大于手续费
                     if (ref.getType() == XDAG_FIELD_OUT && !ref.getAmount().isZero()) {
                         result = ImportResult.INVALID_BLOCK;
                         result.setHashlow(ref.getAddress());
@@ -290,7 +297,7 @@ public class BlockchainImpl implements Blockchain {
                         log.debug("Address's amount isn't zero");
                         return result;
                     }
-                    Block refBlock = getBlockByHash(ref.getAddress(), false);
+                    Block refBlock = getBlockByHash(ref.getAddress(), false);//raw=false
                     if (refBlock == null) {
 //                        log.debug("No Parent " + Hex.toHexString(ref.getHashLow()));
                         result = ImportResult.NO_PARENT;
@@ -314,9 +321,9 @@ public class BlockchainImpl implements Blockchain {
                             result.setErrorInfo("Ref block's balance < minGas");
                             log.debug("Ref block's balance < minGas");
                             return result;
-                        }
+                         }
                     }
-                } else {
+                } else {//杜绝黑洞地址
                     if (ref != null && ref.type == XDAG_FIELD_INPUT && !addressStore.addressIsExist(BytesUtils.byte32ToArray(ref.getAddress()))) {
                         result = ImportResult.INVALID_BLOCK;
                         result.setErrorInfo("Address isn't exist " + WalletUtils.toBase58(BytesUtils.byte32ToArray(ref.getAddress())));
@@ -333,6 +340,13 @@ public class BlockchainImpl implements Blockchain {
                         return result;
                     }
                 }
+
+                if (ref != null && ref.getType() == XDAG_FIELD_INPUT) {
+                    String account = toBase58(BytesUtils.byte32ToArray(ref.getAddress()));
+                    log.debug("Transfer from: {}", account);
+                }
+
+                //走到这说明引用区块都能找到，找不到则已经退出该方法了，返回NO_PARENT
                 /*
                  Determine if ref is a block
                  */
@@ -342,7 +356,7 @@ public class BlockchainImpl implements Blockchain {
                     updateBlockFlag(block, BI_EXTRA, false);
                 }
             }
-            // 检查区块合法性 检查input是否能使用
+            //返回该区块验证成功的公钥,验证是否其中的公钥能验证主块,检查地址引用里放的公钥在不在上述公钥集合里面
             if (!canUseInput(block)) {
                 result = ImportResult.INVALID_BLOCK;
                 result.setHashlow(block.getHashLow());
@@ -352,9 +366,13 @@ public class BlockchainImpl implements Blockchain {
             }
             int id = 0;
             // remove links
+            //快照区块则直接返回，区块引用对应的区块的标志位没有被置BI_REF，走下面逻辑后，该引用区块会被置为BI_REF，extra从memOrphanPool中移除，
+            // 并存入blockStore，非extra从orphanBlockStore移除，且之前已被保存了，就不用再保存了
+            //区块引用中若还有区块引用，执行同样的操作
             for (Address ref : all) {
                 FieldType fType;
                 if (!ref.isAddress) {
+                    //快照区块则直接返回，区块引用对应的区块的标志位没有置BI_REF，走下面逻辑后，该引用区块会被置为BI_REF，extra从memOrphanPool中移除，并存入blockStore，非extra从orphanBlockStore移除，且之前已被保存了，就不用再保存了
                     removeOrphan(ref.getAddress(),
                             (block.getInfo().flags & BI_EXTRA) != 0
                                     ? OrphanRemoveActions.ORPHAN_REMOVE_EXTRA
@@ -362,12 +380,12 @@ public class BlockchainImpl implements Blockchain {
 
                     fType = ref.getType().equals(XDAG_FIELD_IN) ? XDAG_FIELD_OUT : XDAG_FIELD_IN;
                 } else {
-                    fType = ref.getType().equals(XDAG_FIELD_INPUT) ? XDAG_FIELD_OUTPUT : XDAG_FIELD_INPUT;
+                    fType = ref.getType().equals(XDAG_FIELD_INPUT) ? XDAG_FIELD_OUTPUT : XDAG_FIELD_INPUT;//
                 }
 
-                if (compareAmountTo(ref.getAmount(), XAmount.ZERO) != 0) {
+                if (compareAmountTo(ref.getAmount(), XAmount.ZERO) != 0) {//交易块
                     onNewTxHistory(ref.getAddress(), block.getHashLow(), fType, ref.getAmount(),
-                            block.getTimestamp(), block.getInfo().getRemark(), ref.isAddress, id);
+                            block.getTimestamp(), block.getInfo().getRemark(), ref.isAddress, id);//这里id为内嵌数据库的key的一部分
                 }
                 id++;
             }
@@ -376,7 +394,7 @@ public class BlockchainImpl implements Blockchain {
             checkNewMain();
 
             // 如果是自己的区块
-            if (checkMineAndAdd(block)) {
+            if (checkMineAndAdd(block)) {//区块走这，第一次来的话，是我们的块，isSave为false，则存入内存map中，memOurBlocks，xdagStats.setOurLastBlockHash(block.getHash().toArray());
                 log.debug("A block hash:{} become mine", block.getHashLow().toHexString());
                 updateBlockFlag(block, BI_OURS, true);
             }
@@ -428,30 +446,32 @@ public class BlockchainImpl implements Blockchain {
             xdagStats.nblocks++;
             xdagStats.totalnblocks = Math.max(xdagStats.nblocks, xdagStats.totalnblocks);
 
-            if ((block.getInfo().flags & BI_EXTRA) != 0) {
+            if ((block.getInfo().flags & BI_EXTRA) != 0) {//区块第一次来，如果是extra的话则存入孤块内存池
                 memOrphanPool.put(block.getHashLow(), block);
                 xdagStats.nextra++;
 //                 TODO：设置为返回 IMPORTED_EXTRA
 //                result = ImportResult.IMPORTED_EXTRA;
             } else {
-                saveBlock(block);
+                saveBlock(block);//块第一次来，不是extra，会走这，然后会将其保存到blockStore，并从memOurBlocks内存中删掉，但extra第一次没走这，仍在memOurBlocks(前提得是自己出的extra主块)
+                                 //saveBlock操作里面有涉及pretop的操作
                 // 1. prohibited non-mining node set Tx pool,
                 // 2. all nodes temporarily close tx pool when syncing.
                 if (kernel.getConfig().getEnableGenerateBlock() && kernel.getPow() != null) {
-                    orphanBlockStore.addOrphan(block);
+                    orphanBlockStore.addOrphan(block);//加入孤块存储中，区块来了，除了extra主块，都扔入orphanBlockStore，等着被extra块引用然后走逻辑才能从orphanBlockStore删掉，
+                                                      // 且也都存储过了blockStore
                 }
                 xdagStats.nnoref++;
             }
-            blockStore.saveXdagStatus(xdagStats);
+            blockStore.saveXdagStatus(xdagStats);//更新xdagStats的存储
 
-            // 如果区块输入不为0说明是交易块
+
             if (!block.getInputs().isEmpty()) {
-                if ((block.getInfo().getFlags() & BI_OURS) != 0) {
+                if ((block.getInfo().getFlags() & BI_OURS) != 0) {//这个log？
                     log.info("XDAG:pool transaction(reward). block hash:{}", block.getHash().toHexString());
                 }
             }
 
-            // 把过去四个小时每个时间片的diff都记录下来，后面会用这些diff去转换出一个全局hashrate
+            // 把过去四个小时每个时间片的diff都记录下来，后面会用这些diff去转换出一个全局hashrate    我怎么觉得是32分钟的，也就是32个epoch的
             int i = (int) (XdagTime.getEpoch(block.getTimestamp()) & (HASH_RATE_LAST_MAX_TIME - 1));
             if (XdagTime.getEpoch(block.getTimestamp()) > XdagTime.getEpoch(xdagExtStats.getHashrate_last_time())) {
                 xdagExtStats.getHashRateTotal()[i] = BigInteger.ZERO;
@@ -469,7 +489,7 @@ public class BlockchainImpl implements Blockchain {
 
             }
 
-            return result;
+            return result;//交易块一路直行下来，没问题就是IMPORTED_NOT_BEST
         } catch (Throwable e) {
             log.error(e.getMessage(), e);
             return ImportResult.ERROR;
@@ -492,11 +512,12 @@ public class BlockchainImpl implements Blockchain {
                 if (kernel.getXdagState() == XdagState.CDST || kernel.getXdagState() == XdagState.CTST || kernel.getXdagState() == XdagState.CONN
                         || kernel.getXdagState() == XdagState.CDSTP || kernel.getXdagState() == XdagState.CTSTP || kernel.getXdagState() == XdagState.CONNP) {
                     txHistoryStore.batchSaveTxHistory(txHistory);
-                } else {
+                }
+                else {
                     if (!txHistoryStore.saveTxHistory(txHistory)) {
                         log.warn("tx history write to mysql fail:{}", txHistory);
                         // Mysql exception, transaction history transferred to Rocksdb
-                        blockStore.saveTxHistoryToRocksdb(txHistory, id);
+                        blockStore.saveTxHistoryToRocksdb(txHistory, id);//存入数据库失败,则存入内嵌数据库
                     } else {
                         List<TxHistory> txHistoriesInRocksdb = blockStore.getAllTxHistoryFromRocksdb();
                         if (!txHistoriesInRocksdb.isEmpty()) {
@@ -631,7 +652,6 @@ public class BlockchainImpl implements Blockchain {
             for (Block block = getBlockByHash(Bytes32.wrap(xdagTopStatus.getTop()), false); block != null
                     && ((block.getInfo().flags & BI_MAIN) == 0);
                  block = getMaxDiffLink(getBlockByHash(block.getHashLow(), true), true)) {
-
                 if ((block.getInfo().flags & BI_MAIN_CHAIN) != 0) {
                     p = block;
                     ++i;
@@ -711,7 +731,7 @@ public class BlockchainImpl implements Blockchain {
         for (Address link : links) {
             if (!link.isAddress) {
                 // 预处理时不需要拿回全部数据
-                Block ref = getBlockByHash(link.getAddress(), false);
+                Block ref = getBlockByHash(link.getAddress(), false);//这里传false其实有节约资源的味道
                 XAmount ret;
                 // 如果处理过
                 if ((ref.getInfo().flags & BI_MAIN_REF) != 0) {
@@ -724,14 +744,14 @@ public class BlockchainImpl implements Blockchain {
                     continue;
                 }
                 sumGas = sumGas.add(ret);
-                updateBlockRef(ref, new Address(block));
+                updateBlockRef(ref, new Address(block));//链接块或者交易块执行完后，执行到这里，会在其info里面给引用赋值
                 if (flag && sumGas != XAmount.ZERO) {// judge if block is mainBlock, if true: add fee!
                     block.getInfo().setFee(block.getFee().add(sumGas));
                     addAndAccept(block, sumGas);
                     sumGas = XAmount.ZERO;
                 }
             }
-        }
+        }//处理完手续费，并加入到主块金额中
 
 
         for (Address link : links) {
@@ -761,7 +781,7 @@ public class BlockchainImpl implements Blockchain {
                     log.debug("This input ref's amount less than 0");
                     return XAmount.ZERO;
                 }
-                sumIn = sumIn.add(link.getAmount());
+                sumIn = sumIn.add(link.getAmount());//如果是主块的话，这一步是累计输入总额
             } else if (link.getType() == XDAG_FIELD_INPUT) {
                 XAmount balance = addressStore.getBalanceByAddress(hash2byte(link.getAddress()));
                 if (compareAmountTo(balance, link.amount) < 0) {
@@ -798,7 +818,7 @@ public class BlockchainImpl implements Blockchain {
                 Block ref = getBlockByHash(linkAddress, false);
                 if (link.getType() == XDAG_FIELD_IN) {
                     subtractAndAccept(ref, link.getAmount());
-                    XAmount allBalance = addressStore.getAllBalance();
+                    XAmount allBalance = addressStore.getAllBalance();//
                     allBalance = allBalance.add(link.getAmount().subtract(block.getFee()));
                     addressStore.updateAllBalance(allBalance);
                 } else if (!flag) {// 递归返回到第一层时，ref上一个主块（output）类型，此时不允许扣款
@@ -808,10 +828,10 @@ public class BlockchainImpl implements Blockchain {
 //            blockStore.saveBlockInfo(ref.getInfo()); // TODO：acceptAmount时已经保存了 这里还需要保存吗
             } else {
                 if (link.getType() == XDAG_FIELD_INPUT) {
-                    subtractAmount(BasicUtils.hash2byte(linkAddress), link.getAmount(), block);
+                    subtractAmount(BasicUtils.hash2byte(linkAddress), link.getAmount(), block);//根据交易再减余额，执行交易
                 } else if (link.getType() == XDAG_FIELD_OUTPUT) {
-                    addAmount(BasicUtils.hash2byte(linkAddress), link.getAmount().subtract(block.getFee()), block);
-                    gas = gas.add(block.getFee()); // Mark the output for Fee
+                    addAmount(BasicUtils.hash2byte(linkAddress), link.getAmount().subtract(block.getFee()), block);//所获得的钱比写的值要少交易费
+                    gas = gas.add(block.getFee()); // Mark the output for Fee，若是交易块，则fee已经设置，有值，此处可以看出一笔交易就一个输出
                 }
             }
         }
@@ -896,21 +916,21 @@ public class BlockchainImpl implements Blockchain {
             updateBlockFlag(block, BI_MAIN, true);
 
             // 接收奖励
-            acceptAmount(block, reward);
+            acceptAmount(block, reward);//blockInfo里面这时会把出块奖励加到自己的amount的属性上，没发交易(我也认为这一步是不用发交易的，因为这就是在执行交易结果)
             xdagStats.nmain++;
 
             // 递归执行主块引用的区块 并获取手续费
-            XAmount mainBlockFee = applyBlock(true, block); //the mainBlock may have tx, return the fee to itself.
+            XAmount mainBlockFee = applyBlock(true, block); //the mainBlock may have tx, return the fee to itself.会得到该主块的全部交易费，并且已经将里面的全部涉及的交易金额处理了
             if (!mainBlockFee.equals(XAmount.ZERO)) {// normal mainBlock will not go into this
-                acceptAmount(block, mainBlockFee); //add the fee
-                block.getInfo().setFee(mainBlockFee);
+                acceptAmount(block, mainBlockFee); //add the fee，主块余额增加交易费，然后如果是本地出的块，则本地余额的值也增加。
+                block.getInfo().setFee(mainBlockFee);//将收到的交易费在主块info里写进去
             }
             // 主块REF指向自身
             // TODO:补充手续费
-            updateBlockRef(block, new Address(block));
+            updateBlockRef(block, new Address(block));// private byte[] ref;
 
             if (randomx != null) {
-                randomx.randomXSetForkTime(block);
+                randomx.randomXSetForkTime(block);//randomx相关操作
             }
         }
 
@@ -948,18 +968,20 @@ public class BlockchainImpl implements Blockchain {
 
         int hasRemark = remark == null ? 0 : 1;
 
+        //以下是创建区块时，判断是创建主块，链接块又或者是交易块的依据。mining、Address
         if (pairs == null && to == null) {
             if (mining) {
-                return createMainBlock();
+                return createMainBlock();//创主块
             } else {
-                return createLinkBlock(remark);
+                return createLinkBlock(remark);//创链接块
             }
         }
+
         int defKeyIndex = -1;
 
         // 遍历所有key 判断是否有defKey
         assert pairs != null;
-        List<KeyPair> keys = new ArrayList<>(Set.copyOf(pairs.values()));
+        List<KeyPair> keys = new ArrayList<>(Set.copyOf(pairs.values()));//这里用set就是为了防止重复
         for (int i = 0; i < keys.size(); i++) {
             if (keys.get(i).equals(wallet.getDefKey())) {
                 defKeyIndex = i;
@@ -1018,7 +1040,7 @@ public class BlockchainImpl implements Blockchain {
     }
 
     public Block createLinkBlock(String remark) {
-        // <header + remark + outsig + nonce>
+        // <header + remark + outsig + nonce>这里应该没nonce把
         int hasRemark = remark == null ? 0 : 1;
         int res = 1 + hasRemark + 2;
         long[] sendTime = new long[2];
@@ -1120,7 +1142,7 @@ public class BlockchainImpl implements Blockchain {
                 && XdagTime.isEndOfEpoch(block.getTimestamp())) {
             blockDiff = getDiffByRandomXHash(block);
         } else {
-            blockDiff = getDiffByRawHash(block.getHash());
+            blockDiff = getDiffByRawHash(block.getHash());//链接块难度计算
         }
 
         return blockDiff;
@@ -1147,6 +1169,7 @@ public class BlockchainImpl implements Blockchain {
         if (block.getLinks().isEmpty()) {
             return cuDiff;
         }
+        //todo:交易块难度处理前置
 
         // 遍历所有link 找maxLink
         List<Address> links = block.getLinks();
@@ -1176,7 +1199,7 @@ public class BlockchainImpl implements Blockchain {
                     // 1. 不在同一epoch的maxDiff+diff0
                     // 2. 同一epoch的maxDiff
                     tmpBlock = refBlock; // tmpBlock是link中的
-                    BigInteger curDiff = refBlock.getInfo().getDifficulty();
+                    BigInteger curDiff = refBlock.getInfo().getDifficulty();//当前引用块的难度
                     while ((tmpBlock != null)
                             && XdagTime.getEpoch(tmpBlock.getTimestamp()) == XdagTime.getEpoch(block.getTimestamp())) {
                         tmpBlock = getMaxDiffLink(tmpBlock, false);
@@ -1211,7 +1234,7 @@ public class BlockchainImpl implements Blockchain {
         MutableBytes data = MutableBytes.create(64);
         Bytes32 rxHash = Hash.sha256(block.getXdagBlock().getData().slice(0, 512 - 32));
         data.set(0, rxHash);
-        data.set(32, block.getXdagBlock().getField(15).getData());
+        data.set(32, block.getXdagBlock().getField(15).getData());//hash(15)+第十六个的data
         byte[] blockHash = randomx.randomXBlockHash(data.toArray(), data.size(), epoch);
         BigInteger diff;
         if (blockHash != null) {
@@ -1269,13 +1292,14 @@ public class BlockchainImpl implements Blockchain {
         }
         return null;
     }
-
+    //快照区块则直接返回，区块引用对应的区块的标志位没有置BI_REF，走下面，该引用区块会被置为BI_REF，extra从memOrphanPool中移除，并存入blockStore，非extra从orphanBlockStore移除，且之前已被保存了，就不用再保存了
     public void removeOrphan(Bytes32 hashlow, OrphanRemoveActions action) {
         Block b = getBlockByHash(hashlow, false);
         // TODO: snapshot
-        if (b != null && b.getInfo() != null && b.getInfo().isSnapshot()) {
+        if (b != null && b.getInfo() != null && b.getInfo().isSnapshot()) {//快照区块则直接返回
             return;
         }
+        //区块引用对应的区块的标志位没有置BI_REF，走下面，该引用区块会被置为BI_REF，extra从memOrphanPool中移除，并存入blockStore，非extra从orphanBlockStore移除，且之前已被保存了，就不用再保存了
         if (b != null && ((b.getInfo().flags & BI_REF) == 0) && (action != OrphanRemoveActions.ORPHAN_REMOVE_EXTRA
                 || (b.getInfo().flags & BI_EXTRA) != 0)) {
             // 如果removeBlock是BI_EXTRA
@@ -1285,11 +1309,10 @@ public class BlockchainImpl implements Blockchain {
                 // 从MemOrphanPool中去除
                 Bytes key = b.getHashLow();
                 Block removeBlockRaw = memOrphanPool.get(key);
-                memOrphanPool.remove(key);
+                memOrphanPool.remove(key);//从map里移除
                 if (action != OrphanRemoveActions.ORPHAN_REMOVE_REUSE) {
-                    // 将区块保存
+                    // 将区块保存到blockStore
                     saveBlock(removeBlockRaw);
-                    // 移除所有EXTRA块链接的块
                     if (removeBlockRaw != null) {
                         List<Address> all = removeBlockRaw.getLinks();
                         for (Address addr : all) {
@@ -1299,13 +1322,13 @@ public class BlockchainImpl implements Blockchain {
                 }
                 // 更新removeBlockRaw的flag
                 // nextra减1
-                updateBlockFlag(removeBlockRaw, BI_EXTRA, false);
+                updateBlockFlag(removeBlockRaw, BI_EXTRA, false);//
                 xdagStats.nextra--;
             } else {
                 orphanBlockStore.deleteByHash(b.getHashLow().toArray());
                 xdagStats.nnoref--;
             }
-            // 更新这个块的flag
+            // 将块置为被引用
             updateBlockFlag(b, BI_REF, true);
         }
     }
@@ -1340,8 +1363,7 @@ public class BlockchainImpl implements Blockchain {
             return;
         }
         block.isSaved = true;
-        blockStore.saveBlock(block);
-        // 如果是自己的账户
+        blockStore.saveBlock(block);//存blockinfo以及sums
         if (memOurBlocks.containsKey(block.getHash())) {
 //            log.info("new account:{}", Hex.toHexString(block.getHash()));
             if (xdagStats.getOurLastBlockHash() == null) {
@@ -1368,8 +1390,9 @@ public class BlockchainImpl implements Blockchain {
         return this.xdagStats;
     }
 
-    public boolean canUseInput(Block block) {
-        List<SECPPublicKey> keys = block.verifiedKeys();
+    //返回该区块验证成功的公钥,验证是否其中的公钥能验证主块,检查地址引用里放的公钥在不在上述公钥集合里面
+    public boolean canUseInput(Block block) {//先把区块里属性里的公钥集合拿出来，把里面能验证签名的公钥放到一个新的集合中，然后拿着这个验证过的公钥，去验证inputs和outputs里面的data里面存放的公钥是不是这个公钥集合里的公钥(防止作假)
+        List<SECPPublicKey> keys = block.verifiedKeys();//返回该区块验证成功的公钥
         List<Address> inputs = block.getInputs();
         if (inputs == null || inputs.isEmpty()) {
             return true;
@@ -1379,12 +1402,12 @@ public class BlockchainImpl implements Blockchain {
          */
         // TODO：
         for (Address in : inputs) {
-            if (!in.isAddress) {
-                if (!verifySignature(in, keys)) {
+            if (!in.isAddress) {//这里走这里的情况，我猜测是主块奖励分配那一部分走的逻辑
+                if (!verifySignature(in, keys)) {//验证是否其中的公钥能验证主块
                     return false;
                 }
             } else {
-                if (!verifyBlockSignature(in, keys)) {
+                if (!verifyBlockSignature(in, keys)) {//检查地址引用里放的公钥在不在上述公钥集合里面
                     return false;
                 }
             }
@@ -1476,7 +1499,7 @@ public class BlockchainImpl implements Blockchain {
             KeyPair ecKey = ourkeys.get(i);
             // TODO: 优化
             byte[] publicKeyBytes = ecKey.getPublicKey().asEcPoint(Sign.CURVE).getEncoded(true);
-            Bytes digest = Bytes.wrap(block.getSubRawData(block.getOutsigIndex() - 2), Bytes.wrap(publicKeyBytes));
+            Bytes digest = Bytes.wrap(block.getSubRawData(block.getOutsigIndex() - 2), Bytes.wrap(publicKeyBytes));//block.getSubRawData(block.getOutsigIndex() - 2),这个方法为取还未填充签名数据的原始data(签名前数据)
             Bytes32 hash = Hash.hashTwice(Bytes.wrap(digest));
             // use hyperledger besu crypto native secp256k1
             if (Sign.SECP256K1.verify(hash, signature, ecKey.getPublicKey())) {
@@ -1506,9 +1529,9 @@ public class BlockchainImpl implements Blockchain {
     }
 
     public XAmount getReward(long nmain) {
-        XAmount start = getStartAmount(nmain);
+        XAmount start = getStartAmount(nmain);//apolloForkAmount
         long nanoAmount = start.toXAmount().toLong();
-        return XAmount.ofXAmount(nanoAmount >> (nmain >> MAIN_BIG_PERIOD_LOG));
+        return XAmount.ofXAmount(nanoAmount >> (nmain >> MAIN_BIG_PERIOD_LOG));//周期衰减
     }
 
     @Override
