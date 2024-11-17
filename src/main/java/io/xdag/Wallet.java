@@ -93,8 +93,8 @@ public class Wallet {
     private final File file;
     private final Config config;
 
-    private final Map<Bytes, KeyPair> accounts = Collections.synchronizedMap(new LinkedHashMap<>());
-    private String password;
+    private final Map<Bytes, KeyPair> accounts = Collections.synchronizedMap(new LinkedHashMap<>());//地址->密钥对
+    private String password;//该钱包的密码
 
     // hd wallet key
     private String mnemonicPhrase = "";
@@ -314,7 +314,7 @@ public class Wallet {
      * Flushes this wallet into the disk.
      */
     public boolean flush() {
-        requireUnlocked();
+        requireUnlocked();//要求钱包得设密码了
 
         try {
             SimpleEncoder enc = new SimpleEncoder();
@@ -349,7 +349,7 @@ public class Wallet {
 
 
     private void requireUnlocked() {
-        if (!isUnlocked()) {
+        if (!isUnlocked()) {//钱包没密码就报异常
             throw new RuntimeException("Wallet is Locked!");
         }
     }
@@ -434,7 +434,7 @@ public class Wallet {
      * @return true if set, otherwise false
      */
     public boolean isHdWalletInitialized() {
-        requireUnlocked();
+        requireUnlocked();//要输入正确密码才能使用钱包文件
         return mnemonicPhrase != null && !mnemonicPhrase.isEmpty();
     }
 

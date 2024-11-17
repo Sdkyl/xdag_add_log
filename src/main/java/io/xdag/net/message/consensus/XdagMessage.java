@@ -63,7 +63,7 @@ public abstract class XdagMessage extends Message  {
     }
 
     public XdagMessage(MessageCode code, Class<?> responseMessageClass, long starttime, long endtime, long random, XdagStats xdagStats, NetDB localNetdb) {
-        super(code, responseMessageClass);
+        super(code, responseMessageClass);//MessageCode.SUMS_REQUEST, SumReplyMessage.class, starttime, endtime, XdagRandomUtils.nextLong(), xdagStats, localNetdb
 
         this.starttime = starttime;
         this.endtime = endtime;

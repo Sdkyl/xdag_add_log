@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.xdag.core.*;
 import org.apache.commons.lang3.time.FastDateFormat;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
@@ -48,10 +49,6 @@ import io.xdag.Kernel;
 import io.xdag.config.Config;
 import io.xdag.config.spec.NodeSpec;
 import io.xdag.consensus.SyncManager;
-import io.xdag.core.Block;
-import io.xdag.core.BlockWrapper;
-import io.xdag.core.Blockchain;
-import io.xdag.core.XdagStats;
 import io.xdag.net.message.Message;
 import io.xdag.net.message.MessageQueue;
 import io.xdag.net.message.ReasonCode;
@@ -363,11 +360,17 @@ public class XdagP2pHandler extends SimpleChannelInboundHandler<Message> {
      */
     protected void processNewBlock(NewBlockMessage msg) {
         Block block = msg.getBlock();
+
         if (syncMgr.isSyncOld()) {
             return;
         }
 
-        log.debug("processNewBlock:{} from node {}", block.getHashLow(), channel.getRemoteAddress());
+        log.debug("processNewBlock:{},Epoch = {} from node {}", block.getHashLow(),XdagTime.getEpoch(block.getTimestamp()), channel.getRemoteAddress());
+//        long nm = kernel.getBlockchain().getXdagStats().totalnmain;
+//        long m = kernel.getBlockchain().getXdagStats().nmain;
+//        XdagTopStatus xdagTopStatus = kernel.getBlockchain().getXdagTopStatus();
+//        kernel.getBlockchain().getBlockByHash(xdagTopStatus.getTop() == null ? null :
+//                Bytes32.wrap(xdagTopStatus.getTop()), false);
         BlockWrapper bw = new BlockWrapper(block, msg.getTtl() - 1, channel.getRemotePeer(), false);
         syncMgr.validateAndAddNewBlock(bw);
     }
@@ -376,6 +379,7 @@ public class XdagP2pHandler extends SimpleChannelInboundHandler<Message> {
         Block block = msg.getBlock();
 
         log.debug("processSyncBlock:{}  from node {}", block.getHashLow(), channel.getRemoteAddress());
+
         BlockWrapper bw = new BlockWrapper(block, msg.getTtl() - 1, channel.getRemotePeer(), true);
         syncMgr.validateAndAddNewBlock(bw);
     }
@@ -403,7 +407,7 @@ public class XdagP2pHandler extends SimpleChannelInboundHandler<Message> {
             SyncBlockMessage blockMsg = new SyncBlockMessage(block, 1);
             msgQueue.sendMessage(blockMsg);
         }
-        msgQueue.sendMessage(new BlocksReplyMessage(startTime, endTime, random, chain.getXdagStats(), netdbMgr.getNetDB()));
+        msgQueue.sendMessage(new BlocksReplyMessage(startTime, endTime, random, chain.getXdagStats(), netdbMgr.getNetDB()));//把账本，联通的节点也发过去
     }
 
     protected void processBlocksReply(BlocksReplyMessage msg) {
@@ -495,7 +499,8 @@ public class XdagP2pHandler extends SimpleChannelInboundHandler<Message> {
         SumRequestMessage msg = new SumRequestMessage(startTime, endTime, chain.getXdagStats(),
                 netdbMgr.getNetDB());
         sendMessage(msg);
-        return msg.getRandom();
+        return msg.getRandom();//发消息时用到的随机数
+
     }
 
     public void sendMessage(Message message) {
@@ -506,7 +511,7 @@ public class XdagP2pHandler extends SimpleChannelInboundHandler<Message> {
         // Confirm that the remote stats has been updated, used to check local state.
         syncMgr.getIsUpdateXdagStats().compareAndSet(false, true);
         XdagStats remoteXdagStats = message.getXdagStats();
-        chain.getXdagStats().update(remoteXdagStats);
+        chain.getXdagStats().update(remoteXdagStats);//从这条消息了解一下网络中另外一个节点的所知的全网状态，从而更新
         netdbMgr.updateNetDB(message.getRemoteNetdb());
     }
 

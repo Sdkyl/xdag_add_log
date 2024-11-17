@@ -76,8 +76,8 @@ public class SyncManager {
     private Blockchain blockchain;
     private long importStart;
     private AtomicLong importIdleTime = new AtomicLong();
-    private AtomicBoolean syncDone = new AtomicBoolean(false);
-    private AtomicBoolean isUpdateXdagStats = new AtomicBoolean(false);
+    private AtomicBoolean syncDone = new AtomicBoolean(false);//false表示还在同步，没结束；true表示同步结束了，pow开启
+    private AtomicBoolean isUpdateXdagStats = new AtomicBoolean(false);//处理msg了，设为true，表示状态改了，执行逻辑以决定当期将会是什么状态
     private ChannelManager channelMgr;
 
 
@@ -107,31 +107,39 @@ public class SyncManager {
         this.blockchain = kernel.getBlockchain();
         this.channelMgr = kernel.getChannelMgr();
         this.stateListener = new StateListener();
-        checkStateTask = new ScheduledThreadPoolExecutor(1, factory);
+        checkStateTask = new ScheduledThreadPoolExecutor(1, factory);//看接收到消息后，这状态会改，看是开启同步，还是说状态已最新，开启挖挖矿
         this.txHistoryStore = kernel.getTxHistoryStore();
     }
 
     public void start() throws InterruptedException {
+        log.debug("SyncManager开启，此时的syncDone的值为：{}",syncDone);
         log.debug("Download receiveBlock run...");
         new Thread(this.stateListener, "xdag-stateListener").start();
-        checkStateFuture = checkStateTask.scheduleAtFixedRate(this::checkState, 64, 5, TimeUnit.SECONDS);
+        checkStateFuture = checkStateTask.scheduleAtFixedRate(this::checkState, 64, 5, TimeUnit.SECONDS);//
     }
 
+    /**
+     * (接收到消息后，状态才会设置为改变(isUpdateXdagStats)，true)
+     * 1.状态没改，则返回
+     * 2，改了状态，若是改成了syc_done，也返回
+     * 3.不在同步中，但节点状态落后网络状态，状态设为conn，即设置同步中（此时isUpdateXdagStats不会更改，其只会在接收到消息后才会设为更改）
+     * 4.查看同步是否已经完成，已经完成，则状态设为syc_done
+     */
     private void checkState() {
-        if (!isUpdateXdagStats.get()) {
+        if (!isUpdateXdagStats.get()) {//没改状态的话，就返回（接收到消息后，状态才会设置为改变，true）
             return;
         }
         if (syncDone.get()) {
             stopStateTask();
             return;
         }
-
         XdagStats xdagStats = kernel.getBlockchain().getXdagStats();
         XdagTopStatus xdagTopStatus = kernel.getBlockchain().getXdagTopStatus();
         long lastTime = kernel.getSync().getLastTime();
         long curTime = msToXdagtimestamp(System.currentTimeMillis());
         long curHeight = xdagStats.getNmain();
         long maxHeight = xdagStats.getTotalnmain();
+        log.debug("进入checkState方法，当前高度：{}，网络高度：{}",curHeight,maxHeight);
         // Exit the syncOld state based on time and height.
         if (!isSync() && (curHeight >= maxHeight - 512 || lastTime >= curTime - 32 * REQUEST_BLOCKS_MAX_TIME)) {
             log.debug("our node height:{} the max height:{}, set sync state", curHeight, maxHeight);
@@ -153,7 +161,7 @@ public class SyncManager {
         boolean res = false;
         Config config = kernel.getConfig();
         int waitEpoch = config.getNodeSpec().getWaitEpoch();
-        if (!isSync() && !isSyncOld() && (XdagTime.getCurrentEpoch() > kernel.getStartEpoch() + waitEpoch)) {
+        if (!isSync() && !isSyncOld() && (XdagTime.getCurrentEpoch() > kernel.getStartEpoch() + waitEpoch)) {//既不是落后一点点，也不是落后黑多，则就是已是最新状态
             res = true;
         }
         if (res) {
@@ -166,8 +174,8 @@ public class SyncManager {
      * Processing the queue adding blocks to the chain.
      */
     // todo:修改共识
-    public ImportResult importBlock(BlockWrapper blockWrapper) {
-        log.debug("importBlock:{}", blockWrapper.getBlock().getHashLow());
+    public ImportResult importBlock(BlockWrapper blockWrapper) {//处理完后，合法就由通道管理广播出去
+        long height = blockWrapper.getBlock().getInfo().getHeight();
         ImportResult importResult = blockchain
                 .tryToConnect(new Block(new XdagBlock(blockWrapper.getBlock().getXdagBlock().getData().toArray())));
 
@@ -184,6 +192,7 @@ public class SyncManager {
                 }
             }
         }
+
         return importResult;
     }
 
@@ -191,10 +200,16 @@ public class SyncManager {
         blockWrapper.getBlock().parse();
         ImportResult result = importBlock(blockWrapper);
         log.debug("validateAndAddNewBlock:{}, {}", blockWrapper.getBlock().getHashLow(), result);
+
         switch (result) {
-            case EXIST, IMPORTED_BEST, IMPORTED_NOT_BEST, IN_MEM -> syncPopBlock(blockWrapper);
+            case EXIST, IMPORTED_BEST, IMPORTED_NOT_BEST, IN_MEM -> {
+                Block block = blockWrapper.getBlock();
+                long height = block.getInfo().getHeight();
+                log.debug("该引入的区块所属的Epoch：{}，然后开始往回执行之前引入失败的放入syncMap的块)",XdagTime.getEpoch(block.getTimestamp()));
+                syncPopBlock(blockWrapper);
+            }
             case NO_PARENT -> {
-                if (syncPushBlock(blockWrapper, result.getHashlow())) {
+                if (syncPushBlock(blockWrapper, result.getHashlow())) {//没有，或者超时了，都返回true
                     log.debug("push block:{}, NO_PARENT {}", blockWrapper.getBlock().getHashLow(), result);
                     List<Channel> channels = channelMgr.getActiveChannels();
                     for (Channel channel : channels) {
@@ -261,7 +276,7 @@ public class SyncManager {
     }
 
     /**
-     * 根据接收到的区块，将子区块释放
+     * 根据接收到的区块，将子区块释放，父区块收到，则释放自取快，子区块释放后，再看是否其自身有被其他引用过（循环迭代此过程），直到所有需要的块都被获取到，之前的引入失败，现在全部开始重新引入执行
      */
     public void syncPopBlock(BlockWrapper blockWrapper) {
         Block block = blockWrapper.getBlock();
@@ -301,7 +316,7 @@ public class SyncManager {
 
     // TODO：目前默认是一直保持同步，不负责出块
     public void makeSyncDone() {
-        if (syncDone.compareAndSet(false, true)) {
+        if (syncDone.compareAndSet(false, true)) {//期待值为false，则将其置为true，并返回值也为true
             // 关闭状态检测进程
             this.stateListener.isRunning = false;
             Config config = kernel.getConfig();
@@ -372,6 +387,7 @@ public class SyncManager {
             checkStateFuture.cancel(true);
         }
         // 关闭线程池
+        log.debug("状态检测线程关闭");
         checkStateTask.shutdownNow();
     }
 
@@ -387,7 +403,9 @@ public class SyncManager {
         public void run() {
             this.isRunning = true;
             while (this.isRunning) {
+                log.debug("现在的Epoch：{},若大于:{},则可以开启状态监听任务",XdagTime.getCurrentEpoch(),kernel.getStartEpoch() + kernel.getConfig().getNodeSpec().getWaitEpoch());
                 if (isTimeToStart()) {
+                    log.debug("StateListener任务开启，不是差很远，也不是还差一点，且等待时间也等够了，当前syncDone的值为：{},若为false，则同步完成",syncDone);
                     makeSyncDone();
                 }
                 try {

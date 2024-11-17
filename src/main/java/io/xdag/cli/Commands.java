@@ -88,7 +88,7 @@ public class Commands {
         long time = XdagTime.xdagTimestampToMs(block.getTimestamp());
         if (print_only_addresses) {
             sbd.append(String.format("%s   %08d",
-                    hash2Address(block.getHash()),
+                    hash2Address(block.getHash()),//data双sha256后，反转然后截取前24个字节，然后进行base64编码，即区块地址为对hash进行base64编码
                     block.getInfo().getHeight()));
         } else {
             byte[] remark = block.getInfo().getRemark();
@@ -96,14 +96,14 @@ public class Commands {
                     block.getInfo().getHeight(),
                     hash2Address(block.getHash()),
                     FastDateFormat.getInstance("yyyy-MM-dd HH:mm:ss.SSS").format(time),
-                    getStateByFlags(block.getInfo().getFlags()),
+                    getStateByFlags(block.getInfo().getFlags()),//区块状态由分析flag得到
                     new String(remark == null ? "".getBytes(StandardCharsets.UTF_8) : remark, StandardCharsets.UTF_8)));
         }
         return sbd.toString();
     }
 
     public static String getStateByFlags(int flags) {
-        int flag = flags & ~(BI_OURS | BI_REMARK);
+        int flag = flags & ~(BI_OURS | BI_REMARK);//去除flags中的这两个标志位
         // 1F
         if (flag == (BI_REF | BI_MAIN_REF | BI_APPLIED | BI_MAIN | BI_MAIN_CHAIN)) {
             return MAIN.getDesc();
@@ -116,13 +116,13 @@ public class Commands {
         if (flag == (BI_REF | BI_MAIN_REF)) {
             return BlockState.REJECTED.getDesc();
         }
-        return BlockState.PENDING.getDesc();
+        return BlockState.PENDING.getDesc();//仅剩BI_REF
     }
 
     /**
      * list address + balance
      *
-     * @param num Number of prints
+     * @param num Number of prints，要输出的该钱包地址下的多少个账户数目
      * @return address + balance
      */
     public String account(int num) {
@@ -146,10 +146,10 @@ public class Commands {
             if (num == 0) {
                 break;
             }
-            str.append(toBase58(toBytesAddress(keyPair)))
+            str.append(toBase58(toBytesAddress(keyPair)))//账户地址：公钥双hash后(sha256再hash160)，再进行base58编码
                     .append(" ")
                     .append(kernel.getAddressStore().getBalanceByAddress(toBytesAddress(keyPair)).toDecimal(9, XUnit.XDAG).toPlainString())
-                    .append(" XDAG")
+                    .append(" XDAG")//AddressSource,该数据源里面存储了余额，其key为ADDRESS(0x30)+公钥双hash
                     .append("\n");
             num--;
         }
@@ -174,19 +174,19 @@ public class Commands {
         } else {
             Bytes32 hash;
             MutableBytes32 key = MutableBytes32.create();
-            if (checkAddress(address)) {
-                hash = pubAddress2Hash(address);
-                key.set(8, Objects.requireNonNull(hash).slice(8, 20));
+            if (checkAddress(address)) {//检查是不是账户地址
+                hash = pubAddress2Hash(address);//由账户地址计算hash时，其结果是一个32字节的数组，只有20个字节有值，从第九个字节开始(脚标为8)。
+                key.set(8, Objects.requireNonNull(hash).slice(8, 20));//key总长度为32，只有20个字节有值，从第九个字节开始(和上面的hash一样)。
                 XAmount balance = kernel.getAddressStore().getBalanceByAddress(fromBase58(address));
                 return String.format("Account balance: %s XDAG", balance.toDecimal(9, XUnit.XDAG).toPlainString());
             } else {
-                if (StringUtils.length(address) == 32) {
-                    hash = address2Hash(address);
+                if (StringUtils.length(address) == 32) {//检查是不是区块地址
+                    hash = address2Hash(address);//总长度为32，前8个字节为空，后二十四个字节有值
                 } else {
-                    hash = getHash(address);
+                    hash = getHash(address);//这里的address为16进制字符组成的字符串，这里的操作是将这16进制组成的字符串转换成32字节长的字节数组，我的推测是Address里的addresshash
                 }
-                key.set(8, Objects.requireNonNull(hash).slice(8, 24));
-                Block block = kernel.getBlockStore().getBlockInfoByHash(Bytes32.wrap(key));
+                key.set(8, Objects.requireNonNull(hash).slice(8, 24));//非账户key，前八字节为空，后面24字节数为区块hashlow
+                Block block = kernel.getBlockStore().getBlockInfoByHash(Bytes32.wrap(key));//从数据库里查
                 return String.format("Block balance: %s XDAG", block.getInfo().getAmount().toDecimal(9, XUnit.XDAG).toPlainString());
             }
 
@@ -207,20 +207,21 @@ public class Commands {
 
         XAmount amount = XAmount.of(BigDecimal.valueOf(sendAmount), XUnit.XDAG);
         MutableBytes32 to = MutableBytes32.create();
-        to.set(8, address.slice(8, 20));
+        to.set(8, address.slice(8, 20));//中间20个字节有值
 
         // 待转账余额
         AtomicReference<XAmount> remain = new AtomicReference<>(amount);
 
         // 转账输入
-        Map<Address, KeyPair> ourAccounts = Maps.newHashMap();
+        Map<Address, KeyPair> ourAccounts = Maps.newHashMap();//记录此次转账用到了哪些个账户，账户是输入还是输出，以及涉及的金额是多少
         List<KeyPair> accounts = kernel.getWallet().getAccounts();
         for (KeyPair account : accounts) {
-            byte[] addr = toBytesAddress(account);
+            byte[] addr = toBytesAddress(account);//20
             XAmount addrBalance = kernel.getAddressStore().getBalanceByAddress(addr);
 
+
             if (compareAmountTo(remain.get(), addrBalance) <= 0) {
-                ourAccounts.put(new Address(keyPair2Hash(account), XDAG_FIELD_INPUT, remain.get(), true), account);
+                ourAccounts.put(new Address(keyPair2Hash(account), XDAG_FIELD_INPUT, remain.get(), true), account);//[keyPair2Hash(account)]->(20个字节有值),input,amount,isaddress
                 remain.set(XAmount.ZERO);
                 break;
             } else {
@@ -231,7 +232,7 @@ public class Commands {
             }
         }
 
-        // 余额不足
+        // 余额不足，也就是账号刷遍了，还不够，那就只能返回余额不足了
         if (compareAmountTo(remain.get(), XAmount.ZERO) > 0) {
             return "Balance not enough.";
         }
@@ -241,7 +242,7 @@ public class Commands {
         for (BlockWrapper blockWrapper : txs) {
             ImportResult result = kernel.getSyncMgr().validateAndAddNewBlock(blockWrapper);
             if (result == ImportResult.IMPORTED_BEST || result == ImportResult.IMPORTED_NOT_BEST) {
-                kernel.getChannelMgr().sendNewBlock(blockWrapper);
+                kernel.getChannelMgr().sendNewBlock(blockWrapper);//验证通过，广播区块
                 str.append(hash2Address(blockWrapper.getBlock().getHashLow())).append("\n");
             }
         }
@@ -269,13 +270,13 @@ public class Commands {
         // 放入defkey
         keysPerBlock.add(kernel.getWallet().getDefKey());
 
-        // base count a block <header + send address + defKey signature>
+        // base count a block <header + send address + defKey signature>,生成此交易块时对该块的签名。
         int base = 1 + 1 + 2 + hasRemark;
         XAmount amount = XAmount.ZERO;
 
         while (!stack.isEmpty()) {
             Map.Entry<Address, KeyPair> key = stack.peek();
-            base += 1;
+            base += 1;//input多了一个
             int originSize = keysPerBlock.size();
             keysPerBlock.add(key.getValue());
             // 说明新增加的key没有重复
@@ -285,9 +286,9 @@ public class Commands {
             }
             // 可以将该输入 放进一个区块
             if (base < 16) {
-                amount = amount.add(key.getKey().getAmount());
-                keys.put(key.getKey(), key.getValue());
-                stack.poll();
+                amount = amount.add(key.getKey().getAmount());//确保区块力能放入这个账户地址的输入，然后才把金额记录下来
+                keys.put(key.getKey(), key.getValue());//记录用到的账户
+                stack.poll();//移除该账户，因为上一句记录了
             } else {
                 res.add(createTransaction(to, amount, keys, remark));
                 // 清空keys，准备下一个
@@ -303,10 +304,11 @@ public class Commands {
         }
         return res;
     }
-
+    //创建一个交易块
     private BlockWrapper createTransaction(Bytes32 to, XAmount amount, Map<Address, KeyPair> keys, String remark) {
-        List<Address> tos = Lists.newArrayList(new Address(to, XDAG_FIELD_OUTPUT, amount, true));
+        List<Address> tos = Lists.newArrayList(new Address(to, XDAG_FIELD_OUTPUT, amount, true));//这里的to对应着addresshash
         Block block = kernel.getBlockchain().createNewBlock(new HashMap<>(keys), tos, false, remark, XAmount.of(100, XUnit.MILLI_XDAG));
+        //创建交易块时，这里的block只注入了info里的type，remark以及coinbase,inputs，outputs和输入账户的公钥
 
         if (block == null) {
             return null;
@@ -320,12 +322,12 @@ public class Commands {
             if (ecKey.equals(defaultKey)) {
                 isDefaultKey = true;
             } else {
-                block.signIn(ecKey);
+                block.signIn(ecKey);//此处注入了block的Map<SECPSignature, Integer> insigs属性，注入了交易块的输入签名
             }
         }
         // signOut. If the default key is changed, the output signature needs to be re-signed.
         if (isDefaultKey) {
-            block.signOut(defaultKey);
+            block.signOut(defaultKey);//此处注入了outsig属性，输出签名
         } else {
             block.signOut(kernel.getWallet().getDefKey());
         }
@@ -358,6 +360,7 @@ public class Commands {
                           XDAG in address: %s
                         4 hr hashrate KHs: %.9f of %.9f
                         Number of Address: %d""",
+                //属性中的N，n为节点node的意思
                 kernel.getNetDB().getSize(), kernel.getNetDBMgr().getWhiteDB().getSize(),
                 xdagStats.getNblocks(), Math.max(xdagStats.getTotalnblocks(), xdagStats.getNblocks()),
                 xdagStats.getNmain(), Math.max(xdagStats.getTotalnmain(), xdagStats.getNmain()),
@@ -390,16 +393,16 @@ public class Commands {
      * @param blockhash blockhash
      * @return block info
      */
-    public String block(Bytes32 blockhash) {
+    public String block(Bytes32 blockhash) {//base64地址解码后的24有效字节hash
         try {
             MutableBytes32 hashLow = MutableBytes32.create();
             hashLow.set(8, blockhash.slice(8, 24));
             Block block = kernel.getBlockStore().getRawBlockByHash(hashLow);
             if (block == null) {
-                block = kernel.getBlockStore().getBlockInfoByHash(hashLow);
+                block = kernel.getBlockStore().getBlockInfoByHash(hashLow);//用blockinfo初始化一个block，默认已经设置已解析，即parsed=true，isSaved = true
                 return printBlockInfo(block, false);
             } else {
-                return printBlockInfo(block, true);
+                return printBlockInfo(block, true);//raw=true
             }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -432,7 +435,7 @@ public class Commands {
         StringBuilder inputs = null;
         StringBuilder outputs = null;
         if (raw) {
-            if (!block.getInputs().isEmpty()) {
+            if (!block.getInputs().isEmpty()) {//仅交易块有
                 inputs = new StringBuilder();
                 for (Address input : block.getInputs()) {
                     inputs.append(String.format("     input: %s           %s%n",
@@ -449,7 +452,7 @@ public class Commands {
                             output.getIsAddress() ? toBase58(hash2byte(output.getAddress())) : hash2Address(output.getAddress()),
                             getStateByFlags(block.getInfo().getFlags()).equals(MAIN.getDesc()) ? output.getAmount().toDecimal(9, XUnit.XDAG).toPlainString() :
                                     block.getInputs().isEmpty() ? XAmount.ZERO.toDecimal(9, XUnit.XDAG).toPlainString() :
-                                            output.getAmount().subtract(MIN_GAS).toDecimal(9, XUnit.XDAG).toPlainString()
+                                            output.getAmount().subtract(MIN_GAS).toDecimal(9, XUnit.XDAG).toPlainString()//居然手续费是收款人出，上面说明链接块输出金额全是0
                     ));
                     // three type of block, 1、main block :getStateByFlags(block.getInfo().getFlags()).equals(MAIN.getDesc())
                     // 2、link block:block.getInputs().isEmpty()     3、else transaction block
@@ -573,7 +576,7 @@ public class Commands {
         StringBuilder stringBuilder = new StringBuilder();
         for (Channel channel : channelList) {
             stringBuilder.append(channel).append(" ")
-                    .append(System.lineSeparator());
+                    .append(System.lineSeparator());//System.lineSeparator(),当前系统换行符
         }
 
         return stringBuilder.toString();
@@ -600,7 +603,7 @@ public class Commands {
 
     public String balanceMaxXfer() {
         return getBalanceMaxXfer(kernel);
-    }
+    }//搜索所有我们的区块里的钱
 
     public static String getBalanceMaxXfer(Kernel kernel) {
         final XAmount[] balance = {XAmount.ZERO};

@@ -116,15 +116,23 @@ public class XdagPow implements PoW, Listener, Runnable {
 
     }
 
+    /**
+     * (只有同步结束了，状态为sycdone时才能开启共识，开始挖矿)
+     * 1.SharesExecutor:该任务为不断从shareQure中取出nonce(share),判断任务是否一致，然后计算该nonce下的hash是否比之前的小，成立就更新nonce以及hash
+     * 2.mainExecutor:根据类属性事件队列里的事件类型，执行对应逻辑
+     * 3.getPoolAwardManager().start():把奖励块从队列里取出来，执行
+     * 4.timerExecutor:超时则向类属性队列添加超时事件，从而启动超时逻辑
+     * 5.broadcasterExecutor:从广播队列取出包装块，广播出去
+     */
     @Override
     public void start() {
         if (!this.isRunning) {
             this.isRunning = true;
-            getSharesExecutor.execute(this.sharesFromPools);
-            mainExecutor.execute(this);
-            kernel.getPoolAwardManager().start();
-            timerExecutor.execute(timer);
-            broadcasterExecutor.execute(this.broadcaster);
+            getSharesExecutor.execute(this.sharesFromPools);//该任务为不断从shareQure中取出nonce(share),判断任务是否一致，然后计算该nonce下的hash是否比之前的小，成立就更新nonce以及hash
+            mainExecutor.execute(this);//根据类属性事件队列里的事件类型，执行对应逻辑，就是执行run（）
+            kernel.getPoolAwardManager().start();//把奖励块从队列里取出来，执行
+            timerExecutor.execute(timer);//超时则向类属性队列添加超时事件，从而启动超时逻辑
+            broadcasterExecutor.execute(this.broadcaster);//从广播队列取出包装块，广播出去
         }
     }
 
@@ -141,8 +149,8 @@ public class XdagPow implements PoW, Listener, Runnable {
 
     public void newBlock() {
         log.debug("Start new block generate....");
-        long sendTime = XdagTime.getMainTime();
-        resetTimeout(sendTime);
+        long sendTime = XdagTime.getMainTime();//当前Epoch的最后时间
+        resetTimeout(sendTime);//时间一到， events.add(new Event(Event.Type.TIMEOUT));
         if (randomXUtils != null && randomXUtils.isRandomxFork(XdagTime.getEpoch(sendTime))) {
             if (randomXUtils.getRandomXPoolMemIndex() == 0) {
                 randomXUtils.setRandomXPoolMemIndex((randomXUtils.getRandomXHashEpochIndex() - 1) & 1);
@@ -182,15 +190,15 @@ public class XdagPow implements PoW, Listener, Runnable {
     }
 
 
-    public Block generateRandomXBlock(long sendTime) {
+    public Block generateRandomXBlock(long sendTime) {//返回一个区块，nonce已填，任务也发给了矿池
         taskIndex.incrementAndGet();
-        Block block = blockchain.createNewBlock(null, null, true, null, XAmount.ZERO);
+        Block block = blockchain.createNewBlock(null, null, true, null, XAmount.ZERO);//主块
         block.signOut(wallet.getDefKey());
         // The first 20 bytes of the initial nonce are the node wallet address.
         minShare.set(Bytes32.wrap(BytesUtils.merge(hash2byte(keyPair2Hash(wallet.getDefKey())),
                 XdagRandomUtils.nextNewBytes(12))));
 
-        block.setNonce(minShare.get());
+        block.setNonce(minShare.get());//先随便设置一个nonce
         minHash.set(Bytes32.fromHexString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
         currentTask.set(createTaskByRandomXBlock(block, sendTime));
         ChannelSupervise.send2Pools(currentTask.get().toJsonString());
@@ -200,7 +208,7 @@ public class XdagPow implements PoW, Listener, Runnable {
 
     public Block generateBlock(long sendTime) {
         taskIndex.incrementAndGet();
-        Block block = blockchain.createNewBlock(null, null, true, null, XAmount.ZERO);
+        Block block = blockchain.createNewBlock(null, null, true, null, XAmount.ZERO);//Map<Address, KeyPair> pairs, List<Address> to, boolean mining, String remark, XAmount fee
         block.signOut(wallet.getDefKey());
         minShare.set(Bytes32.wrap(BytesUtils.merge(hash2byte(keyPair2Hash(wallet.getDefKey())),
                 XdagRandomUtils.nextNewBytes(12))));
@@ -208,11 +216,11 @@ public class XdagPow implements PoW, Listener, Runnable {
         // initial nonce
         minHash.set(block.recalcHash());
         currentTask.set(createTaskByNewBlock(block, sendTime));
-        ChannelSupervise.send2Pools(currentTask.get().toJsonString());
+        ChannelSupervise.send2Pools(currentTask.get().toJsonString());//发送给各个通道
         return block;
     }
 
-    protected void resetTimeout(long timeout) {
+    protected void resetTimeout(long timeout) {//重置超时事件，把events里的超时事件全部清除
         timer.timeout(timeout);
         events.removeIf(e -> e.type == Event.Type.TIMEOUT);
     }
@@ -242,7 +250,7 @@ public class XdagPow implements PoW, Listener, Runnable {
         }
     }
 
-    public void receiveNewPretop(Bytes pretop) {
+    public void receiveNewPretop(Bytes pretop) {//收到NewPretop，则更新globalPretop，并添加events
         // make sure the PoW is running and the main block is generating
         if (!this.isRunning || !isWorking) {
             return;
@@ -292,7 +300,8 @@ public class XdagPow implements PoW, Listener, Runnable {
     }
 
 
-    protected void onTimeout() {
+    protected void  onTimeout() {//该方法用到了该类XdagPow的属性:AtomicReference<Block> generateBlock、boolean isWorking、Kernel kernel、AtomicReference<Task> currentTask
+                                //PoolAwardManager poolAwardManager、AtomicReference<Bytes32> minShare、 Broadcaster broadcaster
         Block b = generateBlock.get();
         // stop generate main block
         isWorking = false;
@@ -342,10 +351,10 @@ public class XdagPow implements PoW, Listener, Runnable {
      * Created original task, now deprecated
      */
     private Task createTaskByNewBlock(Block block, long sendTime) {
-        Task newTask = new Task();
+        Task newTask = new Task();//XdagField[] task,TASK_FLAG = 1,taskTime,taskIndex,XdagSha256Digest digest
 
         XdagField[] task = new XdagField[2];
-        task[1] = block.getXdagBlock().getField(14);
+        task[1] = block.getXdagBlock().getField(14);//块的倒数第二个位置
 //        byte[] data = new byte[448];
         MutableBytes data = MutableBytes.create(448);
 
@@ -354,14 +363,14 @@ public class XdagPow implements PoW, Listener, Runnable {
 
         XdagSha256Digest currentTaskDigest = new XdagSha256Digest();
         try {
-            currentTaskDigest.sha256Update(data);
+            currentTaskDigest.sha256Update(data);//块的前14个位置的数据，写入了其输出流里
             byte[] state = currentTaskDigest.getState();
-            task[0] = new XdagField(MutableBytes.wrap(state));
+            task[0] = new XdagField(MutableBytes.wrap(state));//将十四个没有了实际内容的数据压缩成一个所谓的之前的字段域
             currentTaskDigest.sha256Update(block.getXdagBlock().getField(14).getData());
         } catch (IOException e) {
             log.error(e.getMessage(), e);
         }
-        newTask.setTask(task);
+        newTask.setTask(task);//该task与块的前十五个位置的数据都有关
         newTask.setTaskTime(XdagTime.getEpoch(sendTime));
         newTask.setTaskIndex(taskIndex.get());
         newTask.setDigest(currentTaskDigest);
@@ -372,12 +381,12 @@ public class XdagPow implements PoW, Listener, Runnable {
     @Override
     public void run() {
         log.info("Main PoW start ....");
-        timer.timeout(XdagTime.getEndOfEpoch(XdagTime.getCurrentTimestamp() + 64));
+        timer.timeout(XdagTime.getEndOfEpoch(XdagTime.getCurrentTimestamp() + 64));//这里仅仅只是设置，没有重置
         // init pretop
         globalPretop = null;
         while (this.isRunning) {
             try {
-                Event ev = events.poll(10, TimeUnit.MILLISECONDS);
+                Event ev = events.poll(10, TimeUnit.MILLISECONDS);//events可以直接用，为已初始化类属性
                 if (ev == null) {
                     continue;
                 }
@@ -476,7 +485,7 @@ public class XdagPow implements PoW, Listener, Runnable {
         private boolean isRunning = false;
 
         @Override
-        public void run() {
+        public void run() {//超时则向类属性队列添加超时事件，从而启动超时逻辑
             this.isRunning = true;
             while (this.isRunning) {
                 if (timeout != -1 && XdagTime.getCurrentTimestamp() > timeout) {
@@ -506,7 +515,7 @@ public class XdagPow implements PoW, Listener, Runnable {
         private volatile boolean isRunning = false;
 
         @Override
-        public void run() {
+        public void run() {//从广播队列取出包装块，广播出去
             isRunning = true;
             while (isRunning) {
                 BlockWrapper bw = null;
@@ -535,7 +544,7 @@ public class XdagPow implements PoW, Listener, Runnable {
         private static final int SHARE_FLAG = 2;
 
         @Override
-        public void run() {
+        public void run() {//该任务为不断从shareQure中取出nonce(share),判断任务是否一致，然后计算该nonce下的hash是否比之前的小，成立就更新nonce以及hash
             isRunning = true;
             while (isRunning) {
                 String shareInfo = null;

@@ -28,6 +28,7 @@ import io.xdag.config.Config;
 import java.util.EnumMap;
 import org.apache.commons.lang3.StringUtils;
 
+//RocksDB 是一个嵌入式数据库，意味着它是作为库嵌入到应用程序中的。与传统的数据库不同，它并不是一个独立的服务器，而是直接与应用程序集成，这样可以避免网络通信开销。
 public class RocksdbFactory implements DatabaseFactory {
 
     private final EnumMap<DatabaseName, KVSource<byte[], byte[]>> databases = new EnumMap<>(DatabaseName.class);

@@ -43,7 +43,7 @@ public class AddressStoreImpl implements AddressStore {
     }
 
     public void init() {
-        this.AddressSource.init();
+        this.AddressSource.init();//保证开箱可用
         if(AddressSource.get(new byte[]{ADDRESS_SIZE}) == null){
             AddressSource.put(new byte[]{ADDRESS_SIZE}, BytesUtils.longToBytes(0,false));
         }
@@ -121,7 +121,7 @@ public class AddressStoreImpl implements AddressStore {
     @Override
     public void snapshotAddress(byte[] address, XAmount balance) {
         UInt64 u64V = balance.toXAmount();
-        AddressSource.put(address, u64V.toBytes().toArray());
+        AddressSource.put(address, u64V.toBytes().toArray());//把做快照的时的各地址余额存入此，这里就把各地址余额拿到了
     }
 
 }

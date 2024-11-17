@@ -75,7 +75,7 @@ public class PeerClient {
         this.ip = config.getNodeSpec().getNodeIp();
         this.port = config.getNodeSpec().getNodePort();
         this.coinbase = coinbase;
-        this.workerGroup = new NioEventLoopGroup(0, factory);
+        this.workerGroup = new NioEventLoopGroup(0, factory);//几核就几个线程
         this.whilelist = new HashSet<>();
         initWhiteIPs();
     }
@@ -84,6 +84,8 @@ public class PeerClient {
         return toBase58(toBytesAddress(coinbase));
     }
 
+
+    //比如，向另一个节点发送消息、建立连接等操作并不会立即完成，而是需要一些时间。因此，Netty 提供了 ChannelFuture 来表示这些操作的结果。
     public ChannelFuture connect(Node remoteNode, XdagChannelInitializer xdagChannelInitializer) {
         if (!isAcceptable(new InetSocketAddress(remoteNode.getIp(), remoteNode.getPort()))) {
             return null;

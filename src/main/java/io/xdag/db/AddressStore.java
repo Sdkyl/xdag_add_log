@@ -29,15 +29,15 @@ import io.xdag.core.XAmount;
 
 public interface AddressStore {
 
-    byte ADDRESS_SIZE = (byte) 0x10;
-    byte AMOUNT_SUM = (byte) 0x20;
-    byte ADDRESS = (byte) 0x30;
+    byte ADDRESS_SIZE = (byte) 0x10;//ADDRESS_SIZE -> 总地址数
+    byte AMOUNT_SUM = (byte) 0x20;//AMOUNT_SUM -> 总金额
+    byte ADDRESS = (byte) 0x30;//ADDRESS(一个字节)+hashLow ->8个字节(金额)
 
     void init();
 
     void reset();
 
-    XAmount getBalanceByAddress(byte[] Address);
+    XAmount getBalanceByAddress(byte[] Address);//此处的输入是地址的双hash(长度20)，还未经过base58编码
 
     boolean addressIsExist(byte[] Address);
 

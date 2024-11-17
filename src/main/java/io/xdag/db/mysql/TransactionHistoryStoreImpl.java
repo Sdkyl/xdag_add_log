@@ -165,13 +165,13 @@ public class TransactionHistoryStoreImpl implements TransactionHistoryStore {
 
 
     @Override
-    public List<TxHistory> listTxHistoryByAddress(String address, int page, Object... parameters) {
+    public List<TxHistory> listTxHistoryByAddress(String address, int page, Object... parameters) {//可变参数存在四种传递情况，0个，1个，两个，三个
         Connection conn = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
         List<TxHistory> txHistoryList = Lists.newArrayList();
         int totalcount = 0;
-        int PAGE_SIZE = DEFAULT_PAGE_SIZE;
+        int PAGE_SIZE = DEFAULT_PAGE_SIZE;//100
         long start = new Date(0).getTime();
         long end = System.currentTimeMillis();
         switch (parameters.length) {
@@ -217,6 +217,8 @@ public class TransactionHistoryStoreImpl implements TransactionHistoryStore {
                 }
                 totalPage = totalcount < PAGE_SIZE ? 1 : (int) Math.ceil((double) totalcount / PAGE_SIZE);
 
+                //select faddress,faddresstype,fhash," +
+                //"famount,ftype,fremark,ftime from t_transaction_history where faddress= ? and ftime >= ? and ftime <= ? order by ftime desc limit ?,?";
                 pstmt = conn.prepareStatement(SQL_QUERY_TXHISTORY_BY_ADDRESS_WITH_TIME);
                 pstmt.setString(1, address);
                 pstmt.setTimestamp(2, new java.sql.Timestamp(start));
@@ -228,7 +230,7 @@ public class TransactionHistoryStoreImpl implements TransactionHistoryStore {
                     TxHistory txHistory = new TxHistory();
                     // Bytes32 addr = BasicUtils.address2Hash(rs.getString(1));
                     String hash = rs.getString(3);
-                    txHistory.setHash(hash);
+                    txHistory.setHash(hash);//交易所在交易块的hash
                     XAmount amount = XAmount.of(rs.getBigDecimal(4), XUnit.XDAG);
                     int fType = rs.getInt(5);
                     Address addrObj =

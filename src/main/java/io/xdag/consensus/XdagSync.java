@@ -71,19 +71,19 @@ public class XdagSync {
 
     @Getter
     @Setter
-    private Status status;
+    private Status status;//内部枚举类，有两种情况:SYNCING, SYNC_DONE
 
     private final Kernel kernel;
     private ScheduledFuture<?> sendFuture;
     private volatile boolean isRunning;
 
-    private long lastRequestTime;
+    private long lastRequestTime;//最新的请求时间
 
     public XdagSync(Kernel kernel) {
         this.kernel = kernel;
-        this.channelMgr = kernel.getChannelMgr();
+        this.channelMgr = kernel.getChannelMgr();//简称，有东西了往外发
         this.blockStore = kernel.getBlockStore();
-        sendTask = new ScheduledThreadPoolExecutor(1, factory);
+        sendTask = new ScheduledThreadPoolExecutor(1, factory);//定时任务的执行器，以什么方式执行什么任务呢？scheduleAtFixedRate(this::syncLoop, 32, 10, TimeUnit.SECONDS);这样
         sumsRequestMap = new ConcurrentHashMap<>();
         blocksRequestMap = new ConcurrentHashMap<>();
     }
@@ -104,9 +104,9 @@ public class XdagSync {
     private void syncLoop() {
         try {
             if (syncWindow.isEmpty()) {
-                log.debug("start finding different time periods");
+                log.debug("同步任务开始，开始找需要同步的块的起始时间");
                 requestBlocks(0, 1L << 48);
-            }
+            }//经过这个if应该会往syncWindow里添加时间
 
             log.debug("start getting blocks");
             getBlocks();
@@ -128,7 +128,7 @@ public class XdagSync {
         Channel xc = any.get(index);
         long lastTime = getLastTime();
 
-        // Extract the time that has been synchronized.
+        // Extract the time that has been synchronized,
         while (!syncWindow.isEmpty() && syncWindow.get(0) < lastTime) {
             syncWindow.pollFirst();
         }
@@ -145,8 +145,10 @@ public class XdagSync {
                 return;
             }
 
+            log.debug("activeChannel.size = {}",any.size());
             long time = syncWindow.get(i);
             if (time >= lastRequestTime) {
+                log.debug("从时间：{}开始请求16个Epoch的块",time);
                 sendGetBlocks(xc, time, sf);
                 lastRequestTime = time;
             }
@@ -160,7 +162,7 @@ public class XdagSync {
      * @param t start time
      * @param dt interval time
      */
-    private void requestBlocks(long t, long dt) {
+    private void requestBlocks(long t, long dt) {// if (syncWindow.isEmpty())
         // Not in sync state, synchronization is complete, stop synchronization task.
         if (status != Status.SYNCING) {
             stop();
@@ -175,16 +177,17 @@ public class XdagSync {
         SettableFuture<Bytes> sf = SettableFuture.create();
         int index = XdagRandomUtils.nextInt() % any.size();
         Channel xc = any.get(index);
-        if (dt > REQUEST_BLOCKS_MAX_TIME) {
-            findGetBlocks(xc, t, dt, sf);
+        if (dt > REQUEST_BLOCKS_MAX_TIME) {//新轮回第一次进入该requestBlocks方法时，会走该if
+            findGetBlocks(xc, t, dt, sf);//Channel,start time,interval time,手动控制异步任务44,44，(参数的意思是，跟谁要多少时间段的区块，结果是什么)
         } else {
             if (!kernel.getSyncMgr().isSyncOld() && !kernel.getSyncMgr().isSync()) {
                 log.debug("set sync old");
-                setSyncOld();
+                setSyncOld();//kernel.setXdagState(XdagState.CONNP)
             }
 
-            if (t > getLastTime()) {
+            if (t > getLastTime()) {//只要自己当前主块之后高度的
                 syncWindow.offerLast(t);
+                log.debug("要的起始时间：{}开始的时间段的块，此时活跃通道的个数为：{}",t,any.size());
             }
         }
     }
@@ -194,7 +197,7 @@ public class XdagSync {
      * @param t request time
      */
     private void sendGetBlocks(Channel xc, long t, SettableFuture<Bytes> sf) {
-        long randomSeq = xc.getP2pHandler().sendGetBlocks(t, t + REQUEST_BLOCKS_MAX_TIME);
+        long randomSeq = xc.getP2pHandler().sendGetBlocks(t, t + REQUEST_BLOCKS_MAX_TIME);//16个Epoch
         blocksRequestMap.put(randomSeq, sf);
         try {
             sf.get(REQUEST_WAIT, TimeUnit.SECONDS);
@@ -208,16 +211,16 @@ public class XdagSync {
     /**
      * Recursively find the time periods to request.
      */
-    private void findGetBlocks(Channel xc, long t, long dt, SettableFuture<Bytes> sf) {
+    private void findGetBlocks(Channel xc, long t, long dt, SettableFuture<Bytes> sf) {//Channel,start time,interval time,手动控制异步任务，这里t我的理解为历史最新时间
         MutableBytes lSums = MutableBytes.create(256);
         Bytes rSums;
-        if (blockStore.loadSum(t, t + dt, lSums) <= 0) {
+        if (blockStore.loadSum(t, t + dt, lSums) <= 0) {//先取的Epoch的高位，此时的浓缩度最高，可做大范围检查，快速确认是否一致，lsums会被赋值
             return;
         }
-        long randomSeq = xc.getP2pHandler().sendGetSums(t, t + dt);
+        long randomSeq = xc.getP2pHandler().sendGetSums(t, t + dt);//发消息时用到的随机数
         sumsRequestMap.put(randomSeq, sf);
         try {
-            Bytes sums = sf.get(REQUEST_WAIT, TimeUnit.SECONDS);
+            Bytes sums = sf.get(REQUEST_WAIT, TimeUnit.SECONDS);//等64秒拿结果，拿到其他节点发过来的结果并且会逐个更新状态
             rSums = sums.copy();
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             sumsRequestMap.remove(randomSeq);
@@ -225,7 +228,7 @@ public class XdagSync {
             return;
         }
         sumsRequestMap.remove(randomSeq);
-        dt >>= 4;
+        dt >>= 4;//
         for (int i = 0; i < 16; i++) {
             long lSumsSum = lSums.getLong(i * 16, ByteOrder.LITTLE_ENDIAN);
             long lSumsSize = lSums.getLong(i * 16 + 8, ByteOrder.LITTLE_ENDIAN);
@@ -233,7 +236,7 @@ public class XdagSync {
             long rSumsSize = rSums.getLong(i * 16 + 8, ByteOrder.LITTLE_ENDIAN);
 
             if (lSumsSize != rSumsSize || lSumsSum != rSumsSum) {
-                requestBlocks(t + i * dt, dt);
+                requestBlocks(t + i * dt, dt);//dt得大于2的20次方，否则走另一个逻辑，(这里其实可以break了，因为后面已经没必要检查了，相同或者不相同都没有意义了，break后直接只用走走新request里的循环逻辑)
             }
         }
     }

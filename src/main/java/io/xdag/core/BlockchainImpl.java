@@ -383,7 +383,7 @@ public class BlockchainImpl implements Blockchain {
                     fType = ref.getType().equals(XDAG_FIELD_INPUT) ? XDAG_FIELD_OUTPUT : XDAG_FIELD_INPUT;//
                 }
 
-                if (compareAmountTo(ref.getAmount(), XAmount.ZERO) != 0) {//交易块
+                if (compareAmountTo(ref.getAmount(), XAmount.ZERO) != 0) {
                     onNewTxHistory(ref.getAddress(), block.getHashLow(), fType, ref.getAmount(),
                             block.getTimestamp(), block.getInfo().getRemark(), ref.isAddress, id);//这里id为内嵌数据库的key的一部分
                 }
@@ -410,6 +410,7 @@ public class BlockchainImpl implements Blockchain {
             // 根据难度更新主链
             // 判断难度是否是比当前最大，并以此更新topMainChain
             if (block.getInfo().getDifficulty().compareTo(xdagTopStatus.getTopDiff()) > 0) {
+                log.debug("区块：{}的难度更大",block.getHashLow());
                 // 切换主链 fork
                 long currentHeight = xdagStats.nmain;
                 // 找到共同祖先blockref
@@ -675,9 +676,10 @@ public class BlockchainImpl implements Blockchain {
 
     /**
      * 回退到区块block *
+     * 该方法和回退有很大区别，正常境况下主块更替都会执行，只要未涉及回退已执行主块
      */
     public void unWindMain(Block block) {
-        log.debug("Unwind main to block,{}", block == null ? "null" : block.getHashLow().toHexString());
+        log.debug("Unwind main to block,{},block height = {},top = {},nmain = {}", block == null ? "null" : block.getHashLow().toHexString(),block == null ? "null" :block.getInfo().getHeight(),xdagStats.nmain,xdagStats.totalnmain);
         if (xdagTopStatus.getTop() != null) {
             log.debug("now pretop : {}", xdagTopStatus.getPreTop() == null ? "null" : Bytes32.wrap(xdagTopStatus.getPreTop()).toHexString());
             for (Block tmp = getBlockByHash(Bytes32.wrap(xdagTopStatus.getTop()), true); tmp != null
@@ -821,7 +823,7 @@ public class BlockchainImpl implements Blockchain {
                     XAmount allBalance = addressStore.getAllBalance();//
                     allBalance = allBalance.add(link.getAmount().subtract(block.getFee()));
                     addressStore.updateAllBalance(allBalance);
-                } else if (!flag) {// 递归返回到第一层时，ref上一个主块（output）类型，此时不允许扣款
+                } else if (!flag) {
                     addAndAccept(ref, link.getAmount().subtract(block.getFee()));
                     gas = gas.add(block.getFee()); // Mark the output for Fee
                 }
@@ -1243,7 +1245,7 @@ public class BlockchainImpl implements Blockchain {
         } else {
             diff = getDiffByRawHash(block.getHash());
         }
-        log.debug("block diff:{}, ", diff);
+        log.debug("block hash:{} ,block diff:{}, ", block.getHashLow(),diff);
         return diff;
     }
 
@@ -1503,7 +1505,8 @@ public class BlockchainImpl implements Blockchain {
             Bytes32 hash = Hash.hashTwice(Bytes.wrap(digest));
             // use hyperledger besu crypto native secp256k1
             if (Sign.SECP256K1.verify(hash, signature, ecKey.getPublicKey())) {
-                log.debug("verify block success hash={}.", hash.toHexString());
+                //log.debug("verify block success hash={}.", hash.toHexString());
+                log.debug("该区块是本节点产的：{}",block.getHashLow());
                 addOurBlock(i, block);
                 return true;
             }

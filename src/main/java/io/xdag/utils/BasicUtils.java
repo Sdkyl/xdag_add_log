@@ -62,7 +62,7 @@ public class BasicUtils {
     public static Bytes32 getHash(String address) {
         Bytes32 hash = null;
         if (address != null) {
-            hash = Bytes32.fromHexString(address);
+            hash = Bytes32.fromHexString(address);//将16进制字符串转换成32字节长度的字节数组；不足补零，超了报异常
         }
         return hash;
     }
@@ -94,7 +94,7 @@ public class BasicUtils {
     }
 
     public static Bytes32 pubAddress2Hash(String address) {
-        Bytes ret = Bytes.wrap(WalletUtils.fromBase58(address));
+        Bytes ret = Bytes.wrap(WalletUtils.fromBase58(address));//账户地址解码后，会得到长度为20的字节数组
         MutableBytes32 res = MutableBytes32.create();
         res.set(8, ret);
         return res;

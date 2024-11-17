@@ -35,7 +35,7 @@ public class XdagTime {
     public static long getCurrentTimestamp() {
         long time_ms = System.currentTimeMillis();
         double ms_tmp = (double) (time_ms << 10);
-        return (long) Math.ceil(ms_tmp / 1000 + 0.5);
+        return (long) Math.ceil(ms_tmp / 1000 + 0.5);//Math.ceil(...) 是对结果向上取整，确保返回的值是大于等于计算结果的最小整数。
     }
 
     /**
@@ -54,7 +54,7 @@ public class XdagTime {
      * 获取该时间戳所属的epoch
      */
     public static long getEpoch(long time) {
-        return time >> 16;
+        return time >> 16;//右移两个字节
     }
 
     /**

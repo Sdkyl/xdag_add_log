@@ -44,7 +44,7 @@ import lombok.Setter;
 public class Channel {
 
     private SocketChannel socket;
-    private boolean isInbound;
+    private boolean isInbound;//Direction: Client initiates entry into server
     private InetSocketAddress remoteAddress;
     private Peer remotePeer;
     private MessageQueue msgQueue;

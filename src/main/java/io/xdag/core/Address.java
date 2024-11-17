@@ -38,7 +38,7 @@ public class Address {
     /**
      * 放入字段的数据 正常顺序
      */
-    protected MutableBytes32 data;
+    protected MutableBytes32 data;//里面放的数据的格式以及解析的方法会有不同，所以要根据type来配套解析
     /**
      * 输入or输出or不带amount的输出
      */
@@ -50,9 +50,9 @@ public class Address {
      */
     protected XAmount amount = XAmount.ZERO;
     /**
-     * 地址hash低192bit
+     * 地址hash低192bit，24B
      */
-    protected MutableBytes32 addressHash;
+    protected MutableBytes32 addressHash;//账户地址或者区块hash，有主块、链接块、交易块三种可能
 
     protected boolean isAddress;
 
@@ -94,10 +94,10 @@ public class Address {
     public Address(Bytes32 blockHashlow, XdagField.FieldType type, Boolean isAddress) {
         this.isAddress = isAddress;
         if(!isAddress){
-            this.data = blockHashlow.mutableCopy();
+            this.data = blockHashlow.mutableCopy();//放的hash索引
         }else {
             this.data = MutableBytes32.create();
-            data.set(8,blockHashlow.mutableCopy().slice(8,20));
+            data.set(8,blockHashlow.mutableCopy().slice(8,20));//也是放的hash，但该索引方式和上面索引方式有不同
         }
         this.type = type;
         parse();
@@ -128,7 +128,7 @@ public class Address {
             UInt64 u64v = amount.toXAmount();
             this.data.set(0, Bytes.wrap(BytesUtils.bigIntegerToBytes(u64v,8)));
         }
-        return this.data;
+        return this.data;//交易块里的账户地址的话，此data里前八个字节放金额,后面紧接着为hash
     }
 
     public void parse() {

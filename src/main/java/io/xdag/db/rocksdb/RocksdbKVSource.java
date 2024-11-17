@@ -93,7 +93,7 @@ public class RocksdbKVSource implements KVSource<byte[], byte[]> {
     }
 
     @Override
-    public void init() {
+    public void init() {//初始化一些合理的默认值，以确保 RocksDB 可以开箱即用，如果数据库已经存在，则返回旧的，不会创新的
         resetDbLock.writeLock().lock();
         try {
             log.debug("~> RocksdbKVSource.init(): {}", name);
@@ -234,7 +234,7 @@ public class RocksdbKVSource implements KVSource<byte[], byte[]> {
 
     @Override
     public byte[] get(byte[] key) {
-        resetDbLock.readLock().lock();
+        resetDbLock.readLock().lock();//保证有锁
         try {
             if (log.isTraceEnabled()) {
                 log.trace("~> RocksdbKVSource.get(): {}, key: {}", name, Hex.encodeHexString(key));
@@ -327,7 +327,7 @@ public class RocksdbKVSource implements KVSource<byte[], byte[]> {
             }
             return Boolean.FALSE;
         });
-        return retList;
+        return retList;//拿到全部
     }
 
     @Override

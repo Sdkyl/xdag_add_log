@@ -29,7 +29,7 @@ import org.apache.tuweni.bytes.Bytes32;
 
 public final class BlockUtils {
 
-    public static byte[] getTimeKey(long timestamp, Bytes32 hashlow) {
+    public static byte[] getTimeKey(long timestamp, Bytes32 hashlow) {//TIME_HASH_INFO(1个字节)+epoch(8个字节)  或者  TIME_HASH_INFO(1个字节)+epoch(8个字节)+hashlow(32字节)
         long t = UnsignedLong.fromLongBits(timestamp >> 16).longValue();
         byte[] key = BytesUtils.merge(BlockStore.TIME_HASH_INFO, BytesUtils.longToBytes(t, false));
         if (hashlow == null) {

@@ -46,7 +46,7 @@ import java.util.*;
 @Slf4j
 @Getter
 @Setter
-public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, RPCSpec, SnapshotSpec, RandomxSpec, FundSpec {
+public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, RPCSpec, SnapshotSpec, RandomxSpec, FundSpec {//Spec后缀的一般含义为配置或者规范
 
     protected String configName;
 
@@ -65,7 +65,7 @@ public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, 
 
     protected int maxShareCountPerChannel = 20;
     protected int awardEpoch = 0xf;
-    protected int waitEpoch = 32;
+    protected int waitEpoch = 1;//32
     // =========================
     // foundation spec
     // =========================
@@ -103,25 +103,25 @@ public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, 
     protected long txPageSizeLimit = 500;
     protected boolean enableGenerateBlock = false;
 
-    protected String rootDir;
-    protected String storeDir;
-    protected String storeBackupDir;
-    protected String whiteListDir;
+    protected String rootDir;//run文件夹
+    protected String storeDir;//  mainnet/rocksdb/xdagdb
+    protected String storeBackupDir;//  mainnet/rocksdb/xdagdb/backupdata
+    protected String whiteListDir;//  mainnet/netdb-white.txt
     protected String rejectAddress;
-    protected String netDBDir;
+    protected String netDBDir;//   mainnet/netdb.txt
 
     protected int storeMaxOpenFiles = 1024;
     protected int storeMaxThreads = 1;
     protected boolean storeFromBackup = false;
     protected String originStoreDir = "./testdate";
 
-    protected String whitelistUrl;
+    protected String whitelistUrl;//"https://raw.githubusercontent.com/XDagger/xdag/master/client/netdb-white.txt"
     protected boolean enableRefresh = false;
     protected String walletKeyFile;
 
     protected int TTL = 5;
     protected List<InetSocketAddress> whiteIPList = Lists.newArrayList();
-    protected List<String> poolWhiteIPList = Lists.newArrayList();
+    protected List<String> poolWhiteIPList = Lists.newArrayList();//pool.whiteIPs = ["0.0.0.0"] pool.ws.port = 7001
 
     // =========================
     // Wallet spec
@@ -131,7 +131,7 @@ public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, 
     // =========================
     // Xdag spec
     // =========================
-    protected long xdagEra;
+    protected long xdagEra;//mainnet:0x16940000000L，era纪元时间
     protected XdagField.FieldType xdagFieldHeader;
     protected XAmount mainStartAmount;
     protected long apolloForkHeight;
@@ -156,11 +156,11 @@ public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, 
     // =========================
     // Randomx Config
     // =========================
-    protected boolean flag;
+    protected boolean flag;//randomx.flags.fullmem = false
 
-    protected AbstractConfig(String rootDir, String configName, Network network, short networkVersion) {
+    protected AbstractConfig(String rootDir, String configName, Network network, short networkVersion) {//"mainnet", "xdag-mainnet", Network.MAINNET, Constants.MAINNET_VERSION
         this.rootDir = rootDir;
-        this.configName = configName;
+        this.configName = configName;//AbstractConfig名
         this.network = network;
         this.networkVersion = networkVersion;
         getSetting();
@@ -168,10 +168,10 @@ public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, 
     }
 
     public void setDir() {
-        storeDir = getRootDir() + "/rocksdb/xdagdb";
-        storeBackupDir = getRootDir() + "/rocksdb/xdagdb/backupdata";
-        whiteListDir = getRootDir() + "/netdb-white.txt";
-        netDBDir = getRootDir() + "/netdb.txt";
+        storeDir = getRootDir() + "/rocksdb/xdagdb";//  mainnet/rocksdb/xdagdb
+        storeBackupDir = getRootDir() + "/rocksdb/xdagdb/backupdata";//  mainnet/rocksdb/xdagdb/backupdata
+        whiteListDir = getRootDir() + "/netdb-white.txt";//  mainnet/netdb-white.txt
+        netDBDir = getRootDir() + "/netdb.txt";  //   mainnet/netdb.txt
     }
 
     @Override
@@ -258,7 +258,7 @@ public class AbstractConfig implements Config, AdminSpec, NodeSpec, WalletSpec, 
         nodeTag = config.hasPath("node.tag") ? config.getString("node.tag") : "xdagj";
         rejectAddress = config.hasPath("node.reject.transaction.address") ? config.getString("node.reject.transaction.address") : "";
         maxInboundConnectionsPerIp = config.getInt("node.maxInboundConnectionsPerIp");
-        enableTxHistory = config.hasPath("node.transaction.history.enable") && config.getBoolean("node.transaction.history.enable");
+        enableTxHistory = config.hasPath("node.transaction.history.enable") && config.getBoolean("node.transaction.history.enable");//等号右边是否为true
         enableGenerateBlock = config.hasPath("node.generate.block.enable") && config.getBoolean("node.generate.block.enable");
         txPageSizeLimit = config.hasPath("node.transaction.history.pageSizeLimit") ? config.getInt("node.transaction.history.pageSizeLimit") : 500;
         fundAddress = config.hasPath("fund.address") ? config.getString("fund.address") : "4duPWMbYUgAifVYkKDCWxLvRRkSByf5gb";

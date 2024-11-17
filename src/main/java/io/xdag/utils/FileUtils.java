@@ -35,15 +35,15 @@ public class FileUtils {
      * sum file name
      */
     public static List<String> getFileName(long time) {
-        List<String> files = Lists.newArrayList(BlockStore.SUM_FILE_NAME);
+        List<String> files = Lists.newArrayList(BlockStore.SUM_FILE_NAME);//"sums.dat"为第一个元素
         StringBuilder stringBuffer = new StringBuilder(
-                Hex.toHexString(BytesUtils.byteToBytes((byte) ((time >> 40) & 0xff), true)));
+                Hex.toHexString(BytesUtils.byteToBytes((byte) ((time >> 40) & 0xff), true)));//取11,12位(16进制下的)
         stringBuffer.append("/");
         files.add(stringBuffer + BlockStore.SUM_FILE_NAME);
-        stringBuffer.append(Hex.toHexString(BytesUtils.byteToBytes((byte) ((time >> 32) & 0xff), true)));
+        stringBuffer.append(Hex.toHexString(BytesUtils.byteToBytes((byte) ((time >> 32) & 0xff), true)));//取9,10位
         stringBuffer.append("/");
         files.add(stringBuffer + BlockStore.SUM_FILE_NAME);
-        stringBuffer.append(Hex.toHexString(BytesUtils.byteToBytes((byte) ((time >> 24) & 0xff), true)));
+        stringBuffer.append(Hex.toHexString(BytesUtils.byteToBytes((byte) ((time >> 24) & 0xff), true)));//取7,8位
         stringBuffer.append("/");
         files.add(stringBuffer + BlockStore.SUM_FILE_NAME);
         return files;

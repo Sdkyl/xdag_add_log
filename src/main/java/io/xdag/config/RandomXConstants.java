@@ -26,10 +26,10 @@ package io.xdag.config;
 
 public class RandomXConstants {
 
-    public static final long SEEDHASH_EPOCH_BLOCKS = 4096;
+    public static final long SEEDHASH_EPOCH_BLOCKS = 4096;//1000000000000
     public static final long SEEDHASH_EPOCH_LAG = 128;
-    public static final long RANDOMX_FORK_HEIGHT = 1540096;
-    public static final int XDAG_RANDOMX = 2;
+    public static final long RANDOMX_FORK_HEIGHT = 1540096;//101111000000000000000（二进制）
+    public static final int XDAG_RANDOMX = 2;//挖矿类型
 
     public static long SEEDHASH_EPOCH_TESTNET_BLOCKS = 2048;
     public static long SEEDHASH_EPOCH_TESTNET_LAG = 64;

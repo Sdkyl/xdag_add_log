@@ -73,12 +73,12 @@ public class XdagSha256Digest {
     public byte[] getState() {
         byte[] encodedState = sha256Digest.getEncodedState();
         byte[] state = new byte[32];
-        System.arraycopy(encodedState, encodedState.length - 32 - 4, state, 0, 32);
+        System.arraycopy(encodedState, encodedState.length - 32 - 4, state, 0, 32);//Object src,  int  srcPos,Object dest, int destPos,int length);
         for (int i = 0; i < 32; i += 4) {
             int temp = BytesUtils.bytesToInt(state, i, false);
-            System.arraycopy(BytesUtils.intToBytes(temp, true), 0, state, i, 4);
+            System.arraycopy(BytesUtils.intToBytes(temp, true), 0, state, i, 4);//Object src,  int  srcPos,Object dest, int destPos,int length);
         }
-        return state;
+        return state;//拿出encodedState后36位，再去掉最后四位
     }
 
 }

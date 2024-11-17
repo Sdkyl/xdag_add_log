@@ -56,10 +56,10 @@ public class NetDBManager {
 
     public NetDBManager(Config config) {
         this.config = config;
-        database = config.getNodeSpec().getNetDBDir();
-        databaseWhite = config.getNodeSpec().getWhiteListDir();
-        whiteUrl = config.getNodeSpec().getWhitelistUrl();
-        whiteDB = new NetDB();
+        database = config.getNodeSpec().getNetDBDir();//mainnet/netdb.txt
+        databaseWhite = config.getNodeSpec().getWhiteListDir();//mainnet/netdb-white.txt
+        whiteUrl = config.getNodeSpec().getWhitelistUrl();//"https://raw.githubusercontent.com/XDagger/xdag/master/client/netdb-white.txt"
+        whiteDB = new NetDB();//loadFromConfig() : whiteDB.addNewIP(address);
         netDB = new NetDB();
     }
 
@@ -118,7 +118,7 @@ public class NetDBManager {
         }
     }
 
-    public void init() {
+    public void init() {//白名单写入whiteDB,从官网读取白名单并写入到netdb.txt文件上
         loadFromConfig();
         if(config instanceof DevnetConfig) {
             // devnet only read from config

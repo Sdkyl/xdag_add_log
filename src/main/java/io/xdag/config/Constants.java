@@ -35,37 +35,37 @@ public class Constants {
     /**
      * setmain设置区块为主块时标志该位
      */
-    public static final byte BI_MAIN = 0x01;
+    public static final byte BI_MAIN = 0x01;//0000,0001
     /**
      * 跟BI_MAIN差不多 不过BI_MAIN是确定的 BI_MAIN_CHAIN是还未确定的
      */
-    public static final byte BI_MAIN_CHAIN = 0x02;
+    public static final byte BI_MAIN_CHAIN = 0x02;//0000,0010
     /**
      * 区块被应用apply后可能会标志该标识位（因为有可能区块存在问题不过还是被指向了 但是会标示为拒绝状态）
      */
-    public static final byte BI_APPLIED = 0x04;
+    public static final byte BI_APPLIED = 0x04;//0000,0100
     /**
      * 区块应用apply过后会置该标识位
      */
-    public static final byte BI_MAIN_REF = 0x08;
+    public static final byte BI_MAIN_REF = 0x08;//0000,1000
     /**
-     * 从孤块链中移除 即有区块链接孤块的时候 将孤块置为BI_REF
+     * 从孤块链中移除 即有区块链接孤块的时候 将孤块置为BI_REF(referenced)             有区块指向或者有区块包含了(链接了)该块
      */
-    public static final byte BI_REF = 0x10;
+    public static final byte BI_REF = 0x10;//0001,0000
     /**
      * 添加区块时如果该区块的签名可以用自身的公钥解 则说明该区块是自己的区块
      */
-    public static final byte BI_OURS = 0x20;
+    public static final byte BI_OURS = 0x20;//0010,0000
     /**
      * 候补主块未持久化
      */
-    public static final byte BI_EXTRA = 0x40;
-    public static final byte BI_REMARK = (byte) 0x80;
-    public static final Long SEND_PERIOD = 10L;
+    public static final byte BI_EXTRA = 0x40;//0100,0000
+    public static final byte BI_REMARK = (byte) 0x80;//1000,0000
+    public static final Long SEND_PERIOD = 10L;//.....1010
 
     public static final long REQUEST_BLOCKS_MAX_TIME = UInt64.valueOf(1L << 20).toLong();
     public static final long REQUEST_WAIT = 64;
-    public static final long MAX_ALLOWED_EXTRA = 65536;
+    public static final long MAX_ALLOWED_EXTRA = 65536;//64*1024
     /**
      * 每一轮的确认数是16
      */

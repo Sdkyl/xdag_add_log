@@ -60,7 +60,7 @@ public class Launcher {
     private static final String ENV_XDAGJ_WALLET_PASSWORD = "XDAGJ_WALLET_PASSWORD";
 
     static {
-        Runtime.getRuntime().addShutdownHook(new Thread(Launcher::shutdownHook, "shutdown-hook"));
+        Runtime.getRuntime().addShutdownHook(new Thread(Launcher::shutdownHook, "shutdown-hook"));//第二个逗号，表示线程的名字
     }
 
     private final Options options = new Options();
@@ -134,7 +134,7 @@ public class Launcher {
                 config = new TestnetConfig();
                 break;
             } else {
-                config = new MainnetConfig();
+                config = new MainnetConfig();//一个参数代表了一堆参数，即也就是，1 -> 配置文件
             }
         }
         if (args.length == 0) {

@@ -69,8 +69,8 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
     protected List<Bytes32> blockPreHashs = new CopyOnWriteArrayList<>(new ArrayList<>(16));
     protected List<Bytes32> blockHashs = new CopyOnWriteArrayList<>(new ArrayList<>(16));
     protected List<Bytes32> minShares = new CopyOnWriteArrayList<>(new ArrayList<>(16));
-    private final Map<Address, KeyPair> paymentsToNodesMap = new HashMap<>(10);
-    private static final BlockingQueue<AwardBlock> awardBlockBlockingQueue = new LinkedBlockingQueue<>();
+    private final Map<Address, KeyPair> paymentsToNodesMap = new HashMap<>(10);//实现一个自动转账的小功能，不带矿池的节点在自行测试时，需要手动调用方法拿奖励（会有64）
+    private static final BlockingQueue<AwardBlock> awardBlockBlockingQueue = new LinkedBlockingQueue<>();//奖励块加到这个队列
 
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor(new BasicThreadFactory.Builder()
             .namingPattern("PoolAwardManager-work-thread")
@@ -86,7 +86,7 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
         this.fundRation = Math.max(0, Math.min(config.getFundSpec().getFundRation(), 100));
         this.nodeRation = Math.max(0, Math.min(config.getNodeSpec().getNodeRation(), 100));
         this.blockchain = kernel.getBlockchain();
-        this.commands = new Commands(kernel);
+        this.commands = new Commands(kernel);//原来在矿池奖励这new了
         init();
     }
 
@@ -102,7 +102,7 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
     }
 
     @Override
-    public void start() {
+    public void start() {//在XdagPow中的start()方法中通过kernel被调用
         isRunning = true;
         workExecutor.execute(this);
         log.debug("PoolAwardManager started.");
@@ -154,7 +154,7 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
         // Obtain the corresponding +1 position of the current task and delay it for 16 rounds
         int paidBlockIndex = (int) (((time >> 16) + 1) & config.getNodeSpec().getAwardEpoch());
         log.info("Index of the block paid to the pool:{} ", paidBlockIndex);
-        int keyPos;
+        int keyPos;//钱包的账户索引
 
         // Obtain the block hash and corresponding share to be paid
         Bytes32 preHash = blockPreHashs.get(paidBlockIndex) == null ? null : blockPreHashs.get(paidBlockIndex);
@@ -267,7 +267,7 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
         log.debug("tx block hash [{}]", block.getHash().toHexString());
         kernel.getSyncMgr().validateAndAddNewBlock(new BlockWrapper(block, 5));
         // Rewards to the foundation and pool rewards are in the same transaction block
-        transactionInfoSender.setTxBlock(block.getHash());
+        transactionInfoSender.setTxBlock(block.getHash());//该奖励分配的hash
         transactionInfoSender.setDonateBlock(block.getHash());
         /*
         * Send the award distribute transaction information to pools for pools to validate and then distribute award
@@ -277,7 +277,7 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
             awardMessageHistoryQueue.poll();
         }
         // Send the last 16 reward distribution transaction history to the pool
-        if (awardMessageHistoryQueue.offer(transactionInfoSender.toJsonString())) {
+        if (awardMessageHistoryQueue.offer(transactionInfoSender.toJsonString())) {//offer,消息插入队列
             ChannelSupervise.send2Pools(BlockRewardHistorySender.toJsonString());
         } else {
             log.error("Failed to add transaction history");
@@ -300,13 +300,13 @@ public class PoolAwardManagerImpl implements PoolAwardManager, Runnable {
     @Setter
     public static class TransactionInfoSender {
         // Single transaction history
-        Bytes32 txBlock;
-        Bytes32 donateBlock;
+        Bytes32 txBlock;        //这两个属性，在主块奖励奖励分配给基金会和矿池的时候一样
+        Bytes32 donateBlock;    // 同上
         Bytes32 preHash;
         Bytes32 share;
-        String amount;
-        String fee;
-        String donate;
+        String amount;//给矿池的钱
+        String fee;//一笔手续费
+        String donate;//基金会的钱
 
         public String toJsonString() {
             return "{\n" +

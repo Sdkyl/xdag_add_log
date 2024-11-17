@@ -41,7 +41,7 @@ public class SnapshotInfo {
 
     public SnapshotInfo(boolean type, byte[] data) {
         this.type = type;
-        this.data = data;
+        this.data = data;//block data
     }
 
     public boolean getType() {

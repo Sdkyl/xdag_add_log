@@ -61,26 +61,28 @@ public class XdagBlock {
         this(MutableBytes.wrap(data));
     }
 
-    public XdagBlock(MutableBytes data) {
+    public XdagBlock(MutableBytes data) {//data的来处，见Block里的toBytes()
         this.data = data;
         if (data != null && data.size() == 512) {
             fields = new XdagField[XDAG_BLOCK_FIELDS];
             for (int i = 0; i < XDAG_BLOCK_FIELDS; i++) {
                 MutableBytes32 fieldBytes = MutableBytes32.create();
                 fieldBytes.set(0, data.slice(i * 32, 32));
+                //大可变分成小可变
                 fields[i] = new XdagField(fieldBytes);
                 fields[i].setType(fromByte(getMsgCode(i)));
             }
+            //下面这一段为什么不拿到上面的loop里面？
             for (int i = 0; i < XDAG_BLOCK_FIELDS; i++) {
-                sum += fields[i].getSum();
+                sum += fields[i].getSum();//sum:该小数据段的校验和，四个long型相加，然后16个字段的再加在一起
                 fields[i].setType(fromByte(getMsgCode(i)));
             }
         }
     }
 
-    public byte getMsgCode(int n) {
-        long type = this.data.getLong(8, ByteOrder.LITTLE_ENDIAN);
-        return (byte) (type >> (n << 2) & 0xf);
+    public byte getMsgCode(int n) {//获得第n数据段的类型
+        long type = this.data.getLong(8, ByteOrder.LITTLE_ENDIAN);//从第9个字节开始读取8个字节(这里的data是512字节的大data，这里取(解析)的是header里的type字节部分)
+        return (byte) (type >> (n << 2) & 0xf);//&最后执行
     }
 
     public XdagField[] getFields() {

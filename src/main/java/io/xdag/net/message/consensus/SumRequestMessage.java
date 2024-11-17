@@ -29,7 +29,7 @@ import io.xdag.net.message.MessageCode;
 import io.xdag.utils.XdagRandomUtils;
 
 public class SumRequestMessage extends XdagMessage {
-    public SumRequestMessage(long starttime, long endtime, XdagStats xdagStats, NetDB localNetdb) {
+    public SumRequestMessage(long starttime, long endtime, XdagStats xdagStats, NetDB localNetdb) {//startTime, endTime, chain.getXdagStats(),netdbMgr.getNetDB()
         super(MessageCode.SUMS_REQUEST, SumReplyMessage.class, starttime, endtime, XdagRandomUtils.nextLong(), xdagStats, localNetdb);
     }
 

@@ -39,7 +39,7 @@ public class SimpleEncoder {
 
     public void writeField(byte[] field) {
         try {
-            out.write(field);
+            out.write(field);//将该字节数组写入流中
         } catch (IOException e) {
             throw new SimpleCodecException(e);
         }

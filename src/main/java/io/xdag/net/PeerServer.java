@@ -42,9 +42,9 @@ import org.apache.commons.lang3.SystemUtils;
 @Slf4j
 public class PeerServer {
     private final Kernel kernel;
-    private EventLoopGroup bossGroup;
+    private EventLoopGroup bossGroup;//每个 EventLoop 都会在一个单独的线程中运行，并负责处理与特定通道（Channel）相关的所有 I/O 操作。
     private EventLoopGroup workerGroup;
-    private ChannelFuture channelFuture;
+    private ChannelFuture channelFuture;//可以检查异步操作是否完成（成功或失败）,可以通过它查询该操作的状态,可以添加监听器,可以通过 channel() 方法获取与当前 ChannelFuture 关联的 Channel 对象。
     private final int workerThreadPoolSize = NettyRuntime.availableProcessors() * 2;
 
     public PeerServer(final Kernel kernel) {
@@ -59,7 +59,7 @@ public class PeerServer {
         try {
 
             if(SystemUtils.IS_OS_LINUX) {
-                bossGroup = new EpollEventLoopGroup();
+                bossGroup = new EpollEventLoopGroup();//Group:管理事件的，可以一说是管理线程的
                 workerGroup = new EpollEventLoopGroup(workerThreadPoolSize);
             } else if(SystemUtils.IS_OS_MAC) {
                 bossGroup = new KQueueEventLoopGroup();
@@ -78,7 +78,7 @@ public class PeerServer {
             b.handler(new LoggingHandler());
             b.childHandler(new XdagChannelInitializer(kernel, true, null));
             log.debug("Xdag Node start host:[{}:{}].", ip, port);
-            channelFuture = b.bind(ip, port).sync();
+            channelFuture = b.bind(ip, port).sync();//调用 sync() 方法会使当前线程等待，直到与 ChannelFuture 相关联的操作（例如连接、写数据、关闭通道等）完成。这个过程是阻塞的，即在此期间，当前线程不能执行其他操作。
         } catch (Exception e) {
             log.error("Xdag Node start error:{}.", e.getMessage(), e);
         }

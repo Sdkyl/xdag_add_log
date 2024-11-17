@@ -61,26 +61,32 @@ public enum XdagState {
 
     /**
      * Connected to the  dev network. Synchronizing.
+     * isSync
      */
     CDST(0x08),
     /**
      * Connected to the dev network. Synchronizing from low to high.
+     * isSyncOld
      */
     CDSTP(0x10),
     /**
      * Connected to the test network. Synchronizing.
+     * isSync
      */
     CTST(0x09),
     /**
      * Connected to the test network. Synchronizing from low to high.
+     * isSyncOld
      */
     CTSTP(0x11),
     /**
      * Connected to the main network. Synchronizing.
+     * isSync
      */
     CONN(0x0a),
     /**
      * Connected to the main network. Synchronizing from low to high.
+     * isSyncOld
      */
     CONNP(0x12),
 
@@ -94,6 +100,7 @@ public enum XdagState {
     STST(0x0c),
     /**
      * Synchronized with the main network. Normal operation.
+     * 对应Status里的SYNC_DONE
      */
     SYNC(0x0d),
 
@@ -118,12 +125,12 @@ public enum XdagState {
         this.cmd = state.asByte();
     }
 
-    public void tempSet(XdagState state) {
+    public void tempSet(XdagState state) {//状态可回滚设置
         this.temp = this.cmd;
         this.cmd = state.asByte();
     }
 
-    public void rollback() {
+    public void rollback() {//状态回滚
         this.cmd = this.temp;
         this.temp = -1;
     }

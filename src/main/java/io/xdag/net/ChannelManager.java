@@ -64,7 +64,7 @@ public class ChannelManager {
     public ChannelManager(Kernel kernel) {
         this.kernel = kernel;
         // Resending new blocks to network in loop
-        this.blockDistributeThread = new Thread(this::newBlocksDistributeLoop, "NewSyncThreadBlocks");
+        this.blockDistributeThread = new Thread(this::newBlocksDistributeLoop, "NewSyncThreadBlocks");//不断地从newForeignBlocks里取区块并发送出去
         initWhiteIPs();
     }
 
@@ -186,7 +186,7 @@ public class ChannelManager {
     /**
      * Processing new blocks received from other peers from queue
      */
-    private void newBlocksDistributeLoop() {
+    private void newBlocksDistributeLoop() {//不断地从newForeignBlocks里取区块并发送出去
         while (!Thread.currentThread().isInterrupted()) {
             BlockWrapper wrapper = null;
             try {

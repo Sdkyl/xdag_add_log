@@ -148,7 +148,7 @@ public class XdagCli extends Launcher {
         main(args, new XdagCli());
     }
 
-    public void start(String[] args) throws Exception {
+    public void start(String[] args) throws Exception {//先处理项目启动时传进来的参数指令，也就是启动时要执行的命令
         Config config = buildConfig(args);
         setConfig(config);
         // move old args
@@ -160,11 +160,11 @@ public class XdagCli extends Launcher {
                 argsList.add(arg);
             }
         }
-        String[] newArgs = argsList.toArray(new String[0]);
+        String[] newArgs = argsList.toArray(new String[0]);//toArray() 方法在内部根据 argsList 的大小自动调整数组的大小
         // parse common options
         CommandLine cmd = null;
         try {
-            cmd = parseOptions(newArgs);
+            cmd = parseOptions(newArgs);//将启动时的参数转变成能执行的对应的命令
         } catch (ParseException exception) {
             System.err.println("Parsing Failed:" + exception.getMessage());
         }
@@ -229,7 +229,7 @@ public class XdagCli extends Launcher {
 
     protected void start() throws IOException {
         // create/unlock wallet
-        Wallet wallet = loadWallet().exists() ? loadAndUnlockWallet() : createNewWallet();
+        Wallet wallet = loadWallet().exists() ? loadAndUnlockWallet() : createNewWallet();//有密码了，且写进文件了
         if (wallet == null) {
             return;
         }
@@ -241,15 +241,15 @@ public class XdagCli extends Launcher {
         // create a new account if the wallet is empty
         List<KeyPair> accounts = wallet.getAccounts();
         if (accounts.isEmpty()) {
-            KeyPair key = wallet.addAccountWithNextHdKey();
-            wallet.flush();
+            KeyPair key = wallet.addAccountWithNextHdKey();//添加地址以及秘钥对
+            wallet.flush();//把加了盐的内容写入文件(磁盘)
             System.out.println("New Address (Hex):" + BytesUtils.toHexString(Keys.toBytesAddress(key)));
             System.out.println("New Address (Base58):" + WalletUtils.toBase58(Keys.toBytesAddress(key)));
         }
 
         // start kernel
         try {
-            startKernel(getConfig(), wallet);
+            startKernel(getConfig(), wallet);//配置加载完后，处理钱包，再由二者来初始化kernel
         } catch (Exception e) {
             System.err.println("Uncaught exception during kernel startup:" + e.getMessage());
             e.printStackTrace();
@@ -392,8 +392,8 @@ public class XdagCli extends Launcher {
         return true;
     }
 
-    public Wallet loadWallet() {
-        return new Wallet(getConfig());
+    public Wallet loadWallet() {//拿到钱包文件的位置，以及拿到config，也就是一推初始属性
+        return new Wallet(getConfig());//在配置类里读取钱包文件位置，从而初始化钱包
     }
 
     public Wallet loadAndUnlockWallet() {
@@ -426,7 +426,7 @@ public class XdagCli extends Launcher {
         setPassword(newPassword);
         Wallet wallet = loadWallet();
 
-        if (!wallet.unlock(newPassword) || !wallet.flush()) {
+        if (!wallet.unlock(newPassword) || !wallet.flush()) {//flush方法往钱包文件里写入了必要的数据
             System.err.println("Create New WalletError");
             System.exit(-1);
             return null;
@@ -439,7 +439,7 @@ public class XdagCli extends Launcher {
      * Read a new password from input and require confirmation
      */
     public String readNewPassword(String newPasswordMessageKey, String reEnterNewPasswordMessageKey) {
-        String newPassword = readPassword(newPasswordMessageKey);
+        String newPassword = readPassword(newPasswordMessageKey);//读取控制台输入
         String newPasswordRe = readPassword(reEnterNewPasswordMessageKey);
 
         if (!newPassword.equals(newPasswordRe)) {
@@ -481,7 +481,7 @@ public class XdagCli extends Launcher {
             }
 
             wallet.initializeHdWallet(phrase);
-            wallet.flush();
+            wallet.flush();//写入磁盘
             printer.println("HdWallet Initialized Successfully!");
             return true;
         }
@@ -500,23 +500,23 @@ public class XdagCli extends Launcher {
         return new String(console.readPassword(prompt));
     }
 
-    public void makeSnapshot(boolean b) {
+    public void makeSnapshot(boolean b) {//主要做了两件事，"SNAPSHOT/BLOCKS"->blockInfo(主块info里会赋值snapShotInfo)；复制“SNAPSHOT/ADDRESS”
         System.out.println("make snapshot start");
         System.out.println("convertXAmount = " + b);
         long start = System.currentTimeMillis();
         this.getConfig().getSnapshotSpec().setSnapshotJ(true);
-        RocksdbKVSource blockSource = new RocksdbKVSource(DatabaseName.TIME.toString());
+        RocksdbKVSource blockSource = new RocksdbKVSource(DatabaseName.TIME.toString());//名字叫TIME的数据库是 ——> blockSource  hashLow -> data
         blockSource.setConfig(getConfig());
         blockSource.init();
-        RocksdbKVSource snapshotSource = new RocksdbKVSource("SNAPSHOT/BLOCKS");
+        RocksdbKVSource snapshotSource = new RocksdbKVSource("SNAPSHOT/BLOCKS");//存的有钱的主块
         snapshotSource.setConfig(getConfig());
         snapshotSource.init();
-        RocksdbKVSource indexSource = new RocksdbKVSource(DatabaseName.INDEX.toString());
+        RocksdbKVSource indexSource = new RocksdbKVSource(DatabaseName.INDEX.toString());//名字叫INDEX的数据库是 ——> indexSource
         indexSource.setConfig(getConfig());
         indexSource.init();
-        SnapshotStore snapshotStore = new SnapshotStoreImpl(snapshotSource);
+        SnapshotStore snapshotStore = new SnapshotStoreImpl(snapshotSource);//经过下一步后，其里面height，time，"SNAPSHOT/BLOCKS"->blockInfo
 
-        snapshotStore.makeSnapshot(blockSource,indexSource,b);
+        snapshotStore.makeSnapshot(blockSource,indexSource,b);//主要就是处理blockInfo
 
         Path source = Paths.get(getConfig().getRootDir() + "/rocksdb/xdagdb/ADDRESS");
         Path target = Paths.get(getConfig().getRootDir() + "/rocksdb/xdagdb/SNAPSHOT/ADDRESS");

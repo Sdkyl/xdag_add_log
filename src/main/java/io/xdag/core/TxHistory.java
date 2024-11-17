@@ -34,8 +34,8 @@ import static io.xdag.utils.WalletUtils.toBase58;
 @Setter
 public class TxHistory {
 
-    Address address;
-    String hash;
+    Address address;//出钱的块或者地址，以及收钱的地址
+    String hash;//交易块hash
     long timestamp;
     String remark;
 

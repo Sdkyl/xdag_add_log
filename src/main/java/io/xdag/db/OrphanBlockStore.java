@@ -35,7 +35,7 @@ public interface OrphanBlockStore {
     /**
      * size key
      */
-    byte[] ORPHAN_SIZE = Hex.decode("FFFFFFFFFFFFFFFF");
+    byte[] ORPHAN_SIZE = Hex.decode("FFFFFFFFFFFFFFFF");//-1,-1,....,-1   8个  有符号数11111111,10000000+00000001=10000001=-1
 
     void init();
 

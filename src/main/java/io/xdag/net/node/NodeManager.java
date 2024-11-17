@@ -27,6 +27,8 @@ package io.xdag.net.node;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.xdag.Kernel;
 import io.xdag.config.Config;
 import io.xdag.net.Channel;
@@ -92,7 +94,7 @@ public class NodeManager {
     public synchronized void start() {
         if (!isRunning) {
             // addNodes(getSeedNodes(config.getWhiteListDir()));
-            addNodes(getSeedNodes(netDBManager.getWhiteDB()));
+            addNodes(getSeedNodes(netDBManager.getWhiteDB()));//Add address and then,connect
 
             // every 0.5 seconds, delayed by 1 seconds (kernel boot up)
             connectFuture = exec.scheduleAtFixedRate(this::doConnect, 1000, 500, TimeUnit.MILLISECONDS);
@@ -143,13 +145,15 @@ public class NodeManager {
      */
     protected void doFetch() {
         log.debug("Do fetch node size:{}", deque.size());
-        if (config.getNodeSpec().enableRefresh()) {
+        log.debug("更新前的节点个数为:{}", deque.size());
+        if (config.getNodeSpec().enableRefresh()) {//false
             netDBManager.refresh();
         }
         // 从白名单获得新节点
         addNodes(getSeedNodes(netDBManager.getWhiteDB()));
         // 从netdb获取新节点
         addNodes(getSeedNodes(netDBManager.getNetDB()));
+        log.debug("更新完后的节点个数为：{}",deque.size());
     }
 
     public Set<Node> getSeedNodes(NetDB netDB) {
@@ -162,7 +166,9 @@ public class NodeManager {
 
     public void doConnect() {
         Set<InetSocketAddress> activeAddress = channelMgr.getActiveAddresses();
+        log.debug("activeAddress的大小为{}",activeAddress.size());
         Node node;
+
         while ((node = deque.pollFirst()) != null && channelMgr.size() < config.getNodeSpec().getMaxConnections()) {
             Long lastCon = lastConnect.getIfPresent(node);
             long now = System.currentTimeMillis();
@@ -172,8 +178,20 @@ public class NodeManager {
                     && !activeAddress.contains(node.getAddress())
                     && (lastCon == null || lastCon + RECONNECT_WAIT < now)) {
                 XdagChannelInitializer initializer = new XdagChannelInitializer(kernel, false, node);
-                client.connect(node, initializer);
+                final Node finalNode = node;
+                //client.connect(node, initializer);
+                ChannelFuture future = client.connect(node, initializer);
+                future.addListener((ChannelFutureListener) f -> {
+                    if (f.isSuccess()) {
+                        log.debug("完成与{}的连接",finalNode.toString());
+                    } else {
+                        log.debug("未完成与{}的连接",finalNode.toString());
+                        //Throwable cause = f.cause();
+                        //System.err.println("Connection failed: " + cause.getMessage());
+                    }
+                });
                 lastConnect.put(node, now);
+                //log.debug("完成与{}，{}的连接",node.getIp(),node.getPort());
                 break;
             }
         }

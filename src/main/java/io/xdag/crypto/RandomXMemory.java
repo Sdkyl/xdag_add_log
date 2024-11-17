@@ -33,7 +33,7 @@ import lombok.Setter;
 @Setter
 public class RandomXMemory {
 
-    protected byte[] seed;
+    protected byte[] seed;//滞后区块的hash
     protected long seedHeight;
     protected long seedTime;
     protected long switchTime;

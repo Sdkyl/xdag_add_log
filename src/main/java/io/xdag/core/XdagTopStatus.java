@@ -32,8 +32,8 @@ import lombok.Setter;
 @Setter
 public class XdagTopStatus {
 
-    private byte[] top;
-    private BigInteger topDiff;
+    private byte[] top;//hashlow
+    private BigInteger topDiff;//当前难度
     private byte[] preTop;
     private BigInteger preTopDiff;
 

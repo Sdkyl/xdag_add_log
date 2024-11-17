@@ -70,9 +70,9 @@ public class XdagField implements Cloneable {
     public enum FieldType {
         // nonce字段
         XDAG_FIELD_NONCE(0x00),
-        // 头部字段
+        // 头部字段 0000,0001
         XDAG_FIELD_HEAD(0x01),
-        // 输入
+        // 输入,主块的钱转出的时候会用到这个
         XDAG_FIELD_IN(0x02),
 
         // 输入
@@ -91,7 +91,7 @@ public class XdagField implements Cloneable {
          */
         XDAG_FIELD_COINBASE(0x0B),
         /***
-         *new tx type
+         *new tx type，（感觉是链接块时会用到）
          */
         XDAG_FIELD_INPUT(0x0C),//12
         XDAG_FIELD_OUTPUT(0x0D),//13

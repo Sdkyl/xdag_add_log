@@ -111,7 +111,7 @@ public class MessageQueue {
 
     private void nudgeQueue() {
         //Increase bandwidth consumption of a full used single sync thread to 3 Mbps.
-        int n = Math.min(8, size());
+        int n = Math.min(80, size());//主网是8，这里测试网改为80
         if (n == 0) {
             return;
         }

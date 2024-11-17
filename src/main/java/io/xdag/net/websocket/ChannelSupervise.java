@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 @ChannelHandler.Sharable
 public class ChannelSupervise {// supervise channel
     private static final ChannelGroup GlobalGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-    private static final ConcurrentMap<ChannelId, String> ChannelMap = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<ChannelId, String> ChannelMap = new ConcurrentHashMap<>();//矿池
 
     public static void addChannel(Channel channel) {
         GlobalGroup.add(channel);
@@ -69,7 +69,7 @@ public class ChannelSupervise {// supervise channel
     public static void send2Pools(String info) {
         if (!ChannelMap.isEmpty()) {
             log.debug("There are active mining pools: {}", showChannel());
-            GlobalGroup.writeAndFlush(new TextWebSocketFrame(info));
+            GlobalGroup.writeAndFlush(new TextWebSocketFrame(info));//以便可以通过 WebSocket 发送文本数据。
             log.debug("Send info to pools successfully. Info: {}", info);
         } else {
             log.debug("No active pools.");

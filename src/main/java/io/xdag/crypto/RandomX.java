@@ -91,7 +91,7 @@ public class RandomX {
         if (config instanceof MainnetConfig) {
             isTestNet = false;
         }
-        this.mineType = XDAG_RANDOMX;
+        this.mineType = XDAG_RANDOMX;//2
         // get randomx flags
         if (config.getRandomxSpec().getRandomxFlag()) {
             flags = RandomXJNA.INSTANCE.randomx_get_flags() + RandomXFlag.LARGE_PAGES.getValue() + RandomXFlag.FULL_MEM.getValue();
@@ -170,13 +170,13 @@ public class RandomX {
         }
 
         long seedEpoch = isTestNet ? SEEDHASH_EPOCH_TESTNET_BLOCKS : SEEDHASH_EPOCH_BLOCKS;
-        if ((randomXForkSeedHeight & (seedEpoch - 1)) != 0) {
+        if ((randomXForkSeedHeight & (seedEpoch - 1)) != 0) {//若该高度低十四位为全0，则走不走该if，即4096更新一次种子
             // TODO:
             return;
         }
 
         // init memory and lock
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 2; i++) {//
             globalMemoryLock[i] = new ReentrantReadWriteLock();
             globalMemory[i] = new RandomXMemory();
         }

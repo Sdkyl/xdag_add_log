@@ -101,7 +101,7 @@ public class Kernel {
     protected RandomX randomx;
 
     // 记录运行状态
-    protected AtomicBoolean isRunning = new AtomicBoolean(false);
+    protected AtomicBoolean isRunning = new AtomicBoolean(false);//启动后有更改
     // 记录启动时间片
     @Getter
     protected long startEpoch;
@@ -119,10 +119,10 @@ public class Kernel {
         this.coinbase = wallet.getDefKey();
         this.xdagState = XdagState.INIT;
         this.telnetServer = new TelnetServer(config.getAdminSpec().getTelnetIp(), config.getAdminSpec().getTelnetPort(),
-                this);
+                this);//注意一下此时的this，有点意思
     }
 
-    public Kernel(Config config, KeyPair coinbase) {
+    public Kernel(Config config, KeyPair coinbase) {//感觉kernel类就像是拿着配置文件里得到的属性值去给大家伙分别分发属性值，这些属性值可能不足以完全使得各对象完全初始化，其一定要写相应方法让外界能够改变该属性
         this.config = config;
         this.coinbase = coinbase;
     }
@@ -136,11 +136,12 @@ public class Kernel {
         }
         isRunning.set(true);
         startEpoch = XdagTime.getCurrentEpoch();
+        log.debug("启动Epoch: {}",startEpoch);
 
         // ====================================
         // start channel manager
         // ====================================
-        channelMgr = new ChannelManager(this);
+        channelMgr = new ChannelManager(this);//
         channelMgr.start();
         log.info("Channel Manager start...");
         netDBMgr = new NetDBManager(this.config);
@@ -159,15 +160,15 @@ public class Kernel {
 
         dbFactory = new RocksdbFactory(this.config);
         blockStore = new BlockStoreImpl(
-                dbFactory.getDB(DatabaseName.INDEX),
-                dbFactory.getDB(DatabaseName.BLOCK),
-                dbFactory.getDB(DatabaseName.TIME),
-                dbFactory.getDB(DatabaseName.TXHISTORY));
+                dbFactory.getDB(DatabaseName.INDEX),//indexSource
+                dbFactory.getDB(DatabaseName.BLOCK),//timeSource
+                dbFactory.getDB(DatabaseName.TIME),//这个数据库名字叫TIME
+                dbFactory.getDB(DatabaseName.TXHISTORY));//txHistorySource
         log.info("Block Store init.");
-        blockStore.init();
+        blockStore.init();//indexSource、timeSource、blockSource、txHistorySource
 
-        addressStore = new AddressStoreImpl(dbFactory.getDB(DatabaseName.ADDRESS));
-        addressStore.init();
+        addressStore = new AddressStoreImpl(dbFactory.getDB(DatabaseName.ADDRESS));//各用户余额，以及用户总数，以及所有地址余额总和
+        addressStore.init();//ADDRESS_SIZE,AMOUNT_SUM
         log.info("Address Store init");
 
         orphanBlockStore = new OrphanBlockStoreImpl(dbFactory.getDB(DatabaseName.ORPHANIND));
@@ -189,7 +190,7 @@ public class Kernel {
         // ====================================
         // randomX init
         // ====================================
-        randomx = new RandomX(config);
+        randomx = new RandomX(config);//..
         randomx.init();
 //        randomXUtils.randomXLoadingForkTime();
         log.info("RandomX init");
@@ -197,7 +198,7 @@ public class Kernel {
         // ====================================
         // initialize blockchain database
         // ====================================
-        blockchain = new BlockchainImpl(this);
+        blockchain = new BlockchainImpl(this);//根据此时的账本状态，去干对应状态该干的事
         XdagStats xdagStats = blockchain.getXdagStats();
         // 如果是第一次启动，则新建一个创世块
         if (xdagStats.getOurLastBlockHash() == null) {
@@ -208,7 +209,7 @@ public class Kernel {
             if (xdagStats.getGlobalMiner() == null) {
                 xdagStats.setGlobalMiner(firstAccount);
             }
-            blockchain.tryToConnect(firstBlock);
+            blockchain.tryToConnect(firstBlock);//这里创世快得节点自己自行加载,且会在这里面执行区块保存操作，这里面会把该区块置为MAIN-CHAIN
         } else {
             firstAccount = Keys.toBytesAddress(wallet.getDefKey().getPublicKey());
         }
@@ -218,8 +219,8 @@ public class Kernel {
         // TODO: paulochen randomx 需要恢复
         // 初次快照启动
         if (config.getSnapshotSpec().isSnapshotJ()) {
-            randomx.randomXLoadingSnapshotJ();
-            blockStore.setSnapshotBoot();
+            randomx.randomXLoadingSnapshotJ();//共识算法
+            blockStore.setSnapshotBoot();//I will know next time it starts that the snapshot has been started
         } else {
             if (config.getSnapshotSpec().isSnapshotEnabled() && !blockStore.isSnapshotBoot()) {
                 // TODO: forkTime 怎么获得
@@ -231,7 +232,7 @@ public class Kernel {
                 System.out.println("pre seed:" + Bytes.wrap(blockchain.getPreSeed()).toHexString());
                 randomx.randomXLoadingForkTimeSnapshot(blockchain.getPreSeed(), 0);
             } else {
-                randomx.randomXLoadingForkTime();
+                randomx.randomXLoadingForkTime();//与算法开始使用高度有关的相关操作
             }
         }
 
@@ -258,14 +259,14 @@ public class Kernel {
         // start node manager
         // ====================================
         nodeMgr = new NodeManager(this);
-        nodeMgr.start();
+        nodeMgr.start();//完成本客户端节点和外界节点的连接
         log.info("Node manager start...");
 
         // ====================================
         // send request
         // ====================================
         sync = new XdagSync(this);
-        sync.start();
+        sync.start();//设为Status.SYNCING，去开启同步任务
         log.info("XdagSync start...");
 
         // ====================================
@@ -274,12 +275,12 @@ public class Kernel {
         syncMgr = new SyncManager(this);
         syncMgr.start();
         log.info("SyncManager start...");
-        poolAwardManager = new PoolAwardManagerImpl(this);
+        poolAwardManager = new PoolAwardManagerImpl(this);//这里初始了Command
         // ====================================
         // pow
         // ====================================
         pow = new XdagPow(this);
-        getWsServer().start();
+        getWsServer().start();//开启矿池之间的通信
         log.info("Node to pool websocket start...");
         // register pow
         blockchain.registerListener(pow);

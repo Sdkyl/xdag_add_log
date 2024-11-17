@@ -70,27 +70,29 @@ public class BlockStoreImpl implements BlockStore {
     /**
      * <prefix-hash,value> eg:<diff-hash,blockDiff>
      */
-    private final KVSource<byte[], byte[]> indexSource;
+    private final KVSource<byte[], byte[]> indexSource;//HASH_BLOCK_INFO、SNAPSHOT_BOOT、SNAPSHOT_PRESEED、
+                                                       // SETTING_STATS、SETTING_TOP_STATUS、HASH_BLOCK_INFO+blockhash
+                                                       //height
     /**
      * <prefix-time-hash,hash>
      */
-    private final KVSource<byte[], byte[]> timeSource;
+    private final KVSource<byte[], byte[]> timeSource;//(key=TIME_HASH_INFO+时间+区块hash,v=0)
     /**
      * <hash,rawData>
      */
-    private final KVSource<byte[], byte[]> blockSource;
+    private final KVSource<byte[], byte[]> blockSource;//无标志前缀, hash -> block data
     private final KVSource<byte[], byte[]> txHistorySource;
 
     public BlockStoreImpl(
-            KVSource<byte[], byte[]> index,
+            KVSource<byte[], byte[]> index,//INDEX
             KVSource<byte[], byte[]> time,
             KVSource<byte[], byte[]> block,
-            KVSource<byte[], byte[]> txHistory) {
+            KVSource<byte[], byte[]> txHistory ) {
         this.indexSource = index;
         this.timeSource = time;
         this.blockSource = block;
         this.txHistorySource = txHistory;
-        this.kryo = new Kryo();
+        this.kryo = new Kryo();//kryo: Java 对象序列化为字节数组，并将字节数组反序列化为 Java 对象
         kryoRegister();
     }
 
@@ -168,7 +170,7 @@ public class BlockStoreImpl implements BlockStore {
         byte[] isWalletAddress = new byte[]{(byte) (txHistory.getAddress().getIsAddress() ? 1 : 0)};
         byte[] key = BytesUtils.merge(TX_HISTORY, BytesUtils.merge(txHistory.getAddress().getAddress().toArray(),
                 BasicUtils.address2Hash(txHistory.getHash()).toArray(), BytesUtils.intToBytes(id, true)));
-        // key: 0xa0 + address hash + txHashLow + id
+        // key: 0xa0 + address hash + txHashLow + id     TX_HISTORY(1个字节)+引用的区块的hash(32个字节)+该引用所在区块的hash(32个字节)+该引用在区块的位置(4个字节)
         byte[] value;
         value = BytesUtils.merge(txHistory.getAddress().getType().asByte(), BytesUtils.merge(isWalletAddress,
                 txHistory.getAddress().getAddress().toArray(),
@@ -184,7 +186,7 @@ public class BlockStoreImpl implements BlockStore {
 
     public List<TxHistory> getAllTxHistoryFromRocksdb() {
         List<TxHistory> res = Lists.newArrayList();
-        Set<byte[]> Keys = txHistorySource.keys();
+        Set<byte[]> Keys = txHistorySource.keys();//拿到所以key
         for (byte[] key : Keys) {
             byte[] txHistoryBytes = txHistorySource.get(key);
             byte type = BytesUtils.subArray(txHistoryBytes, 0, 1)[0];
@@ -222,12 +224,12 @@ public class BlockStoreImpl implements BlockStore {
     // 状态也是存在区块里面的
     public XdagStats getXdagStatus() {
         XdagStats status = null;
-        byte[] value = indexSource.get(new byte[]{SETTING_STATS});
+        byte[] value = indexSource.get(new byte[]{SETTING_STATS});//取值
         if (value == null) {
             return null;
         }
         try {
-            status = (XdagStats) deserialize(value, XdagStats.class);
+            status = (XdagStats) deserialize(value, XdagStats.class);//反序列化(恢复)
         } catch (DeserializationException e) {
             log.error(e.getMessage(), e);
         }
@@ -263,17 +265,17 @@ public class BlockStoreImpl implements BlockStore {
     public void saveBlock(Block block) {
         long time = block.getTimestamp();
         // Fix: time中只拿key的后缀（hashlow）就够了，值可以不存
-        timeSource.put(BlockUtils.getTimeKey(time, block.getHashLow()), new byte[]{0});
-        blockSource.put(block.getHashLow().toArray(), block.getXdagBlock().getData().toArray());
+        timeSource.put(BlockUtils.getTimeKey(time, block.getHashLow()), new byte[]{0});//TIME_HASH_INFO(1个字节)+epoch(8个字节)  或者  TIME_HASH_INFO(1个字节)+epoch(8个字节)+hashlow(32字节)
+        blockSource.put(block.getHashLow().toArray(), block.getXdagBlock().getData().toArray());//hashlow -> data
         saveBlockSums(block);
         saveBlockInfo(block.getInfo());
     }
 
     public void saveOurBlock(int index, byte[] hashlow) {
-        indexSource.put(BlockUtils.getOurKey(index, hashlow), new byte[]{0});
+        indexSource.put(BlockUtils.getOurKey(index, hashlow), new byte[]{0});//key含OURS_BLOCK_INFO
     }
 
-    public Bytes getOurBlock(int index) {
+    public Bytes getOurBlock(int index) {//不止一个
         AtomicReference<Bytes> blockHashLow = new AtomicReference<>(Bytes.of(0));
         fetchOurBlocks(pair -> {
             int keyIndex = pair.getKey();
@@ -320,7 +322,7 @@ public class BlockStoreImpl implements BlockStore {
         indexSource.fetchPrefix(new byte[]{OURS_BLOCK_INFO}, pair -> {
             int index = BlockUtils.getOurIndex(pair.getKey());
             assert BlockUtils.getOurHash(pair.getKey()) != null;
-            Block block = getBlockInfoByHash(Bytes32.wrap(Objects.requireNonNull(BlockUtils.getOurHash(pair.getKey()))));
+            Block block = getBlockInfoByHash(Bytes32.wrap(Objects.requireNonNull(BlockUtils.getOurHash(pair.getKey()))));//key:5+24+0
             if (function.apply(Pair.of(index, block))) {
                 return Boolean.TRUE;
             }
@@ -330,15 +332,15 @@ public class BlockStoreImpl implements BlockStore {
 
     public void saveBlockSums(Block block) {
         long size = 512;
-        long sum = block.getXdagBlock().getSum();
+        long sum = block.getXdagBlock().getSum();//区块16个块的校验和
         long time = block.getTimestamp();
-        List<String> filename = FileUtils.getFileName(time);
+        List<String> filename = FileUtils.getFileName(time);//[sums.dat,x/sums.dat,y/sums.dat,z/sums.dat]
         for (int i = 0; i < filename.size(); i++) {
-            updateSum(filename.get(i), sum, size, (time >> (40 - 8 * i)) & 0xff);
+            updateSum(filename.get(i), sum, size, (time >> (40 - 8 * i)) & 0xff);//(sums.dat,sum,512,x)，x=(11 12,9 10,7 8,5 6)
         }
     }
 
-    public MutableBytes getSums(String key) {
+    public MutableBytes getSums(String key) {//key为那四个文件名
         byte[] value = indexSource.get(BytesUtils.merge(SUMS_BLOCK_INFO, key.getBytes(StandardCharsets.UTF_8)));
         if (value == null) {
             return null;
@@ -363,11 +365,11 @@ public class BlockStoreImpl implements BlockStore {
         indexSource.put(BytesUtils.merge(SUMS_BLOCK_INFO, key.getBytes(StandardCharsets.UTF_8)), value);
     }
 
-    public void updateSum(String key, long sum, long size, long index) {
-        MutableBytes sums = getSums(key);
+    public void updateSum(String key, long sum, long size, long index) {//(key,sum,512,x)，key=[sums.dat,x/sums.dat,y/sums.dat,z/sums.dat],x=(11 12,9 10,7 8,sums.dat)
+        MutableBytes sums = getSums(key);//indexSource该数据库里拿数据,0x40+sums.dat为key
         if (sums == null) {
 //            sums = new byte[4096];
-            sums = MutableBytes.create(4096);
+            sums = MutableBytes.create(4096);//256*16=2^8*(8+8),8 -> Long
 //            System.arraycopy(BytesUtils.longToBytes(sum, true), 0, sums, (int) (16 * index), 8);
             sums.set((int) (16 * index), Bytes.wrap(BytesUtils.longToBytes(sum, true)));
 //            System.arraycopy(BytesUtils.longToBytes(size, true), 0, sums, (int) (index * 16 + 8), 8);
@@ -391,32 +393,32 @@ public class BlockStoreImpl implements BlockStore {
         }
     }
 
-    public int loadSum(long starttime, long endtime, MutableBytes sums) {
+    public int loadSum(long starttime, long endtime, MutableBytes sums) {//sums256字节
         int level;
         String key;
         endtime -= starttime;
 
-        if (endtime == 0 || (endtime & (endtime - 1)) != 0) {
+        if (endtime == 0 || (endtime & (endtime - 1)) != 0) {//为0，或者不为2的整数幂,则return负数
             return -1;
         }
 //        if (endtime == 0 || (endtime & (endtime - 1)) != 0 || (endtime & 0xFFFEEEEEEEEFFFFFL) != 0) return -1;
 
-        for (level = -6; endtime != 0; level++, endtime >>= 4) {
+        for (level = -6; endtime != 0; level++, endtime >>= 4) {//level = (间隔是几位16进制的数)-6
         }
 
-        List<String> files = FileUtils.getFileName((starttime) & 0xffffff000000L);
+        List<String> files = FileUtils.getFileName((starttime) & 0xffffff000000L);//开始时间，加时间间隔，可以确定一个时间段(这里分为四段来存储sums的目的也就是为了逐渐缩小请求时间间隔范围，锁定不同范围到最小)
 
-        if (level < 2) {
-            key = files.get(3);
-        } else if (level < 4) {
-            key = files.get(2);
-        } else if (level < 6) {
-            key = files.get(1);
-        } else {
-            key = files.get(0);
+        if (level < 2) {//16进制小于或等于7位
+            key = files.get(3);//取start的7,8位
+        } else if (level < 4) {//7,9]
+            key = files.get(2);//取start的9,10位
+        } else if (level < 6) {//9,11]
+            key = files.get(1);//取start的11,12位
+        } else {               //11,16]
+            key = files.get(0);//取sums.dat的文件名，第一次进来后分析后会走这
         }
 
-        Bytes buf = getSums(key);
+        Bytes buf = getSums(key);//indexSource.get(BytesUtils.merge(SUMS_BLOCK_INFO, key.getBytes(StandardCharsets.UTF_8)));从这里面取，4096字节
         if (buf == null) {
 //            Arrays.fill(sums, (byte)0);
             sums.fill((byte) 0);
@@ -424,7 +426,7 @@ public class BlockStoreImpl implements BlockStore {
         }
         long size = 0;
         long sum = 0;
-        if ((level & 1) != 0) {
+        if ((level & 1) != 0) {//奇数走if
 //            Arrays.fill(sums, (byte)0);
             sums.fill((byte) 0);
             for (int i = 1; i <= 256; i++) {
@@ -434,7 +436,7 @@ public class BlockStoreImpl implements BlockStore {
 //                long totalsize = BytesUtils.bytesToLong(buf, i * 16 + 8, true);
                 long totalsize = buf.getLong((i-1) * 16 + 8, ByteOrder.LITTLE_ENDIAN);
                 size += totalsize;
-                if (i % 16 == 0) {
+                if (i % 16 == 0) {//这里16个加一次，究其原因是因为sums只有256个字节，按每16个字节一分，只能分16段，所以对于buf的256段，只能将其16段的内容做一个累加才能全部放下
 //                    System.arraycopy(BytesUtils.longToBytes(sum, true), 0, sums, i - 16, 8);
                     sums.set(i - 16, Bytes.wrap(BytesUtils.longToBytes(sum, true)));
 //                    System.arraycopy(BytesUtils.longToBytes(size, true), 0, sums, i - 8, 8);
@@ -444,9 +446,9 @@ public class BlockStoreImpl implements BlockStore {
                 }
             }
         } else {
-            long index = (starttime >> (level + 4) * 4) & 0xf0;
+            long index = (starttime >> (level + 4) * 4) & 0xf0;//
 //            System.arraycopy(buf, (int) (index * 16), sums, 0, 16 * 16);
-            sums.set(0, buf.slice((int) index * 16, 16 * 16));
+            sums.set(0, buf.slice((int) index * 16, 16 * 16));//上一轮sums中的sums的16部分的每一部分为buf的256份分成十六部分的和，现在这里的sums为取出具体那不同的一部分的小16部分
         }
         return 1;
     }
@@ -522,20 +524,20 @@ public class BlockStoreImpl implements BlockStore {
     }
 
     public Block getRawBlockByHash(Bytes32 hashlow) {
-        Block block = getBlockInfoByHash(hashlow);
+        Block block = getBlockInfoByHash(hashlow);//若存了该区块的信息，则会通过info创建一个区块，否则就为空
         if (block == null) {
             return null;
         }
 //        log.debug("Data:{}",Hex.toHexString(blockSource.get(hashlow)));
         // 没有源数据
-        if (blockSource.get(hashlow.toArray()) == null) {
+        if (blockSource.get(hashlow.toArray()) == null) {//如果存了info,但没存data(在xdagBlock中)，则返回空
 //            log.error("No block origin data");
             return null;
         }
         block.setXdagBlock(new XdagBlock(blockSource.get(hashlow.toArray())));
         block.setParsed(false);
         block.parse();
-        return block;
+        return block;//区块解析成功，得到区块
     }
 
     public Block getBlockInfoByHash(Bytes32 hashlow) {

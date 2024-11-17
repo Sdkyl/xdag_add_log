@@ -54,7 +54,11 @@ import static io.xdag.core.XdagField.FieldType.*;
 @Slf4j
 @Getter
 @Setter
+/**
+ * Block类为交易块
+ */
 public class Block implements Cloneable {
+    //交易块创建整个过程，注入了如下属性：coinBase，info（type、remark），inputs,outputs,pubKeys,insigs,outsig
 
     public static final int MAX_LINKS = 15;
     /**
@@ -63,7 +67,7 @@ public class Block implements Cloneable {
     public boolean isSaved;
     private Address coinBase;
     private BlockInfo info;
-    private long transportHeader;
+    private long transportHeader;//尚不知其作用
     /**
      * 区块的links 列表 输入输出*
      */
@@ -80,7 +84,7 @@ public class Block implements Cloneable {
     @Getter
     private List<SECPPublicKey> pubKeys = new CopyOnWriteArrayList<>();
     @Getter
-    private Map<SECPSignature, Integer> insigs = new LinkedHashMap<>();
+    private Map<SECPSignature, Integer> insigs = new LinkedHashMap<>();//该Integer存的是签名所在字段的索引(起始是从零开始的)
     private SECPSignature outsig;
     /**
      * 主块的nonce记录矿工地址跟nonce*
@@ -88,7 +92,7 @@ public class Block implements Cloneable {
     @Getter
     private Bytes32 nonce;
     private XdagBlock xdagBlock;
-    private boolean parsed;
+    private boolean parsed;//解析后(为true后)，各字段就回全部被赋值
     private boolean isOurs;
     private byte[] encoded;
     private int tempLength;
@@ -99,7 +103,8 @@ public class Block implements Cloneable {
     @Setter
     private BigInteger pretopCandidateDiff;
 
-    public Block(
+
+    public Block(//kernel.getConfig(), sendTime[0], all, refs, mining, keys, remark, defKeyIndex, fee
             Config config,
             long timestamp,
             List<Address> links,
@@ -112,10 +117,12 @@ public class Block implements Cloneable {
         parsed = true;
         info = new BlockInfo();
         this.info.setTimestamp(timestamp);
-        this.info.setFee(fee);
+        this.info.setFee(fee);//
         int lenghth = 0;
 
         setType(config.getXdagFieldHeader(), lenghth++);
+
+
 
         if (CollectionUtils.isNotEmpty(links)) {
             for (Address link : links) {
@@ -146,10 +153,10 @@ public class Block implements Cloneable {
                 }
             }
         }
-
+        //处理info里的tpye以及info里注入了remark
         if (StringUtils.isAsciiPrintable(remark)) {
-            setType(XDAG_FIELD_REMARK, lenghth++);
-            byte[] data = remark.getBytes(StandardCharsets.UTF_8);
+            setType(XDAG_FIELD_REMARK, lenghth++);//header（必有）、input、output、remark（不一定有）
+            byte[] data = remark.getBytes(StandardCharsets.UTF_8);//字节编码
             byte[] safeRemark = new byte[32];
             Arrays.fill(safeRemark, (byte) 0);
             System.arraycopy(data, 0, safeRemark, 0, Math.min(data.length, 32));
@@ -161,7 +168,7 @@ public class Block implements Cloneable {
                 byte[] keydata = Sign.publicKeyBytesFromPrivate(key.getPrivateKey().getEncodedBytes().toUnsignedBigInteger(), true); //poor performance
 //                byte[] keydata = key.getCompressPubKeyBytes(); //good performance
                 boolean yBit = BytesUtils.toByte(BytesUtils.subArray(keydata, 0, 1)) == 0x03;
-                XdagField.FieldType type = yBit ? XDAG_FIELD_PUBLIC_KEY_1 : XDAG_FIELD_PUBLIC_KEY_0;
+                XdagField.FieldType type = yBit ? XDAG_FIELD_PUBLIC_KEY_1 : XDAG_FIELD_PUBLIC_KEY_0;//判断是奇数公钥还是偶数公钥
                 setType(type, lenghth++);
                 pubKeys.add(key.getPublicKey());
             }
@@ -198,10 +205,10 @@ public class Block implements Cloneable {
     /**
      * Read from raw block of 512 bytes
      */
-    public Block(XdagBlock xdagBlock) {
+    public Block(XdagBlock xdagBlock) {//同步管理器在拿到账户打包的交易后，又通过得到的交易块初始化xdagBlock，再由xdagBlock构造Block
         this.xdagBlock = xdagBlock;
         this.info = new BlockInfo();
-        parse();
+        parse();//此时该块肯定没解析，然后注入的属性和传来的原本的属性也有一点不同，具体看该方法
     }
 
     public Block(BlockInfo blockInfo) {
@@ -231,7 +238,7 @@ public class Block implements Cloneable {
     /**
      * 解析512字节数据*
      */
-    public void parse() {
+    public void parse() {//这里xdagBlock这个数据结构在这发挥了很多作用
         if (this.parsed) {
             return;
         }
@@ -282,14 +289,14 @@ public class Block implements Cloneable {
 
                             SECPSignature tmp = SECPSignature.create(r, s, (byte) 0, Sign.CURVE.getN());
                             if (ixf.getType().ordinal() == XDAG_FIELD_SIGN_IN.ordinal()) {
-                                insigs.put(tmp, i);
+                                insigs.put(tmp, i);//签名站两个field，所以这里i记录的是签名的索引，这里恢复了block的签名属性
                             } else {
                                 outsig = tmp;
                             }
                         }
                     }
                 }
-                if (i == MAX_LINKS && field.getType().ordinal() == XDAG_FIELD_SIGN_IN.ordinal()) {
+                if (i == MAX_LINKS && field.getType().ordinal() == XDAG_FIELD_SIGN_IN.ordinal()) {//最后一个field是输入签名，则此区块的nonce被赋值
                     this.nonce = Bytes32.wrap(xdagBlock.getField(i).getData());
                 }
             }
@@ -312,8 +319,8 @@ public class Block implements Cloneable {
     }
 
     public byte[] toBytes() {
-        SimpleEncoder encoder = new SimpleEncoder();
-        encoder.write(getEncodedBody());
+        SimpleEncoder encoder = new SimpleEncoder();//一个有512字节缓存的输出流
+        encoder.write(getEncodedBody());//EncodedBody:header字节，输入输出的data（含金额，以及给谁或谁出），remark，公钥
 
         for (SECPSignature sig : insigs.keySet()) {
             encoder.writeSignature(BytesUtils.subArray(sig.encodedBytes().toArray(), 0, 64));
@@ -321,27 +328,29 @@ public class Block implements Cloneable {
         if (outsig != null) {
             encoder.writeSignature(BytesUtils.subArray(outsig.encodedBytes().toArray(), 0, 64));
         }
-        int length = encoder.getWriteFieldIndex();
+        int length = encoder.getWriteFieldIndex();//已用字段数
         tempLength = length;
-        int res;
-        if (length == 16) {
-            return encoder.toBytes();
+        int res;//剩余字段数
+        if (length == 16) {//交易块刚创建，第一次执行到这时，肯定没到16
+            return encoder.toBytes();//将流里的内容输出成字节数组
         }
-        res = 15 - length;
+        res = 15 - length;//前15个还剩多少空地
         for (int i = 0; i < res; i++) {
-            encoder.writeField(new byte[32]);
-        }
+            encoder.writeField(new byte[32]);//给这些空地填0
+        }//若没填满15个位置，则用0填充剩余空间
         Bytes32 nonceNotNull = Objects.requireNonNullElse(nonce, Bytes32.ZERO);
-        encoder.writeField(nonceNotNull.toArray());
-        return encoder.toBytes();
+        encoder.writeField(nonceNotNull.toArray());//签名内容的最后32个字节为0
+        return encoder.toBytes();//确保512字节
     }
 
     /**
      * without signature
      */
-    private byte[] getEncodedBody() {
+    private byte[] getEncodedBody() {//header字节，输入输出的data（含金额，以及给谁或谁出），remark，公钥
         SimpleEncoder encoder = new SimpleEncoder();
         encoder.writeField(getEncodedHeader());
+
+
         List<Address> all = Lists.newArrayList();
         all.addAll(inputs);
         all.addAll(outputs);
@@ -373,7 +382,7 @@ public class Block implements Cloneable {
         if (xdagBlock != null) {
             return xdagBlock;
         }
-        xdagBlock = new XdagBlock(toBytes());
+        xdagBlock = new XdagBlock(toBytes());//这里的toBytes()含签名，即一个512里面该有的都有了，不差家伙事了
         return xdagBlock;
     }
 
@@ -386,18 +395,18 @@ public class Block implements Cloneable {
     }
 
     private void sign(KeyPair ecKey, XdagField.FieldType type) {
-        byte[] encoded = toBytes();
+        byte[] encoded = toBytes();//header字节，输入输出的data（含金额，以及给谁或谁出），remark，公钥，不足512字节，填0
         // log.debug("sign encoded:{}", Hex.toHexString(encoded));
         byte[] pubkeyBytes = ecKey.getPublicKey().asEcPoint(Sign.CURVE).getEncoded(true);
         byte[] digest = BytesUtils.merge(encoded, pubkeyBytes);
         //log.debug("sign digest:{}", Hex.toHexString(digest));
-        Bytes32 hash = Hash.hashTwice(Bytes.wrap(digest));
+        Bytes32 hash = Hash.hashTwice(Bytes.wrap(digest));//双sha256双hash
         //log.debug("sign hash:{}", Hex.toHexString(hash.toArray()));
         SECPSignature signature = Sign.SECP256K1.sign(hash, ecKey);
         if (type == XDAG_FIELD_SIGN_OUT) {
             outsig = signature;
         } else {
-            insigs.put(signature, tempLength);
+            insigs.put(signature, tempLength);//交易块的block的Map<SECPSignature, Integer> insigs里的tempLength(value)为0
         }
     }
 
@@ -420,7 +429,8 @@ public class Block implements Cloneable {
                 }
             }
         }
-        digest = getSubRawData(getOutsigIndex() - 2);
+
+        digest = getSubRawData(getOutsigIndex() - 2);//除输出签名外的内容
         for (SECPPublicKey publicKey : keys) {
             // TODO： paulochen 是不是可以替换
             byte[] pubkeyBytes = publicKey.asEcPoint(Sign.CURVE).getEncoded(true);
@@ -447,7 +457,7 @@ public class Block implements Cloneable {
 
     public Bytes32 getHash() {
         if (this.info.getHash() == null) {
-            this.info.setHash(calcHash());
+            this.info.setHash(calcHash());//用的sha256,即32字节
         }
         return Bytes32.wrap(this.info.getHash());
     }
@@ -504,7 +514,7 @@ public class Block implements Cloneable {
     /**
      * 根据length获取前length个字段的数据 主要用于签名*
      */
-    public MutableBytes getSubRawData(int length) {
+    public MutableBytes getSubRawData(int length) {//除签名外的
         Bytes data = getXdagBlock().getData();
         MutableBytes res = MutableBytes.create(512);
         res.set(0, data.slice(0, (length + 1) * 32));
@@ -521,7 +531,7 @@ public class Block implements Cloneable {
 
     private void setType(XdagField.FieldType type, int n) {
         long typeByte = type.asByte();
-        this.info.type |= typeByte << (n << 2);
+        this.info.type |= typeByte << (n << 2);//四位四位的设置，所以需要设置16下
     }
 
     public List<Address> getLinks() {

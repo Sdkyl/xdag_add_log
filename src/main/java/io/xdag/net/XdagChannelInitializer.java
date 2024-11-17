@@ -60,8 +60,10 @@ public class XdagChannelInitializer extends ChannelInitializer<SocketChannel> {
                 ch.disconnect();
                 return;
             }
+            log.debug("ip = {},port = {} 的地址正在完成管道初始化",address.getAddress(),address.getPort());
             Channel channel = new Channel(ch);
             channel.init(ch.pipeline(), isServer, address, kernel);
+            log.debug("ip = {},port = {} 的地址的管道添加成功",address.getAddress(),address.getPort());
             channelMgr.add(channel);
             int bufferSize = Frame.HEADER_SIZE + kernel.getConfig().getNodeSpec().getNetMaxFrameBodySize();
             ch.config().setRecvByteBufAllocator(new FixedRecvByteBufAllocator(bufferSize));

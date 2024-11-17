@@ -30,13 +30,14 @@ import lombok.Setter;
 
 @Getter
 @Setter
+//该全节点(本地)的链状态
 public class XdagStats {
 
     public BigInteger difficulty;
     public BigInteger maxdifficulty;
     public long nblocks;
     public long totalnblocks;
-    public long nmain;
+    public long nmain;//本地最新区块高度
     public long totalnmain;
     public int nhosts;
     public int totalnhosts;
@@ -44,9 +45,9 @@ public class XdagStats {
     public long nnoref;
     public long nextra;
     public long maintime;
-    public XAmount balance = XAmount.ZERO;
+    public XAmount balance = XAmount.ZERO;//区块里的钱
 
-    private byte[] globalMiner;
+    private byte[] globalMiner;//该钱包的账户地址
     private byte[] ourLastBlockHash;
 
     public XdagStats() {
@@ -87,7 +88,7 @@ public class XdagStats {
         this.nmain = this.totalnmain = totalnmain;
     }
 
-    public void update(XdagStats remoteXdagStats) {
+    public void update(XdagStats remoteXdagStats) {//只更新全网的状态情况，自身的不改
         this.totalnhosts = Math.max(this.totalnhosts, remoteXdagStats.totalnhosts);
         this.totalnblocks = Math.max(this.totalnblocks, remoteXdagStats.totalnblocks);
         this.totalnmain = Math.max(this.totalnmain, remoteXdagStats.totalnmain);

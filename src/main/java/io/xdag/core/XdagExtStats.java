@@ -33,9 +33,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class XdagExtStats {
-    private BigInteger[] hashRateTotal = new BigInteger[HASH_RATE_LAST_MAX_TIME];
+    private BigInteger[] hashRateTotal = new BigInteger[HASH_RATE_LAST_MAX_TIME];//近32个时间段的难度数组
     private BigInteger[] hashRateOurs = new BigInteger[HASH_RATE_LAST_MAX_TIME];
-    private long hashrate_last_time;
+    private long hashrate_last_time;//
 
     public XdagExtStats() {
         Arrays.fill(hashRateTotal,BigInteger.ZERO);

@@ -68,9 +68,9 @@ public class OrphanBlockStoreImpl implements OrphanBlockStore {
         } else {
             long orphanSize = getOrphanSize();
             long addNum = Math.min(orphanSize, num);
-            byte[] key = BytesUtils.of(ORPHAN_PREFEX);
+            byte[] key = BytesUtils.of(ORPHAN_PREFEX);//0x00
             List<Pair<byte[],byte[]>> ans = orphanSource.prefixKeyAndValueLookup(key);
-            ans.sort(Comparator.comparingLong(a -> BytesUtils.bytesToLong(a.getValue(), 0, true)));
+            ans.sort(Comparator.comparingLong(a -> BytesUtils.bytesToLong(a.getValue(), 0, true)));//按时间戳排序
             for (Pair<byte[],byte[]> an : ans) {
                 if (addNum == 0) {
                     break;

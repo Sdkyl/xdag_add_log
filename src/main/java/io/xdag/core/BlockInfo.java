@@ -33,24 +33,24 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class BlockInfo {
+public class BlockInfo {//注意区分type和flags
 
     public long type;
     public int flags;
     private long height;
     private BigInteger difficulty;
-    private byte[] ref;
+    private byte[] ref;//该区块里引用的区块的hash，例如这是一个交易块，则这里填的就是该块被谁引用了，放哪个区块里面了，比如放链接块里了或者放主块里了
     private byte[] maxDiffLink;
     private XAmount fee = XAmount.ZERO;
     private byte[] remark;
-    private byte[] hash;
-    private byte[] hashlow;
+    private byte[] hash;//区块数据取hash得到,32
+    private byte[] hashlow;//
     private XAmount amount = XAmount.ZERO;
     private long timestamp;
 
     // snapshot
-    private boolean isSnapshot = false;
-    private SnapshotInfo snapshotInfo = null;
+    private boolean isSnapshot = false;      //做快照时这里设为true
+    private SnapshotInfo snapshotInfo = null;//主块，还有钱，做快照时这里会，false ——> data
 
     @Override
     public String toString() {

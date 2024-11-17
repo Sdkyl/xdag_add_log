@@ -80,7 +80,7 @@ public class SnapshotStoreImpl implements SnapshotStore {
 
     public SnapshotStoreImpl(RocksdbKVSource snapshotSource) {
         this.snapshotSource = snapshotSource;
-        this.kryo = new Kryo();
+        this.kryo = new Kryo();//Kryo 实例能够准备好执行对象的序列化和反序列化操作。
         kryoRegister();
     }
 
@@ -111,9 +111,9 @@ public class SnapshotStoreImpl implements SnapshotStore {
         blockInfo.setType(preBlockInfo.getType());
     }
 
-    public void makeSnapshot(RocksdbKVSource blockSource, RocksdbKVSource indexSource, boolean b) {
-        try (RocksIterator iter = indexSource.getDb().newIterator()) {
-            for (iter.seek(new byte[]{HASH_BLOCK_INFO}); iter.isValid() && iter.key()[0] < SUMS_BLOCK_INFO; iter.next()) {
+    public void makeSnapshot(RocksdbKVSource blockSource, RocksdbKVSource indexSource, boolean b) {//snapshotSource.put(iter.key(), value);//HASH_BLOCK_INFO(一个字节)+hashLow(32字节)
+        try (RocksIterator iter = indexSource.getDb().newIterator()) {//自动关闭资源
+            for (iter.seek(new byte[]{HASH_BLOCK_INFO}); iter.isValid() && iter.key()[0] < SUMS_BLOCK_INFO; iter.next()) {//当迭代器在数据库的有效范围内时，它返回 true,来确保你不会超出数据范围。
                 PreBlockInfo preBlockInfo;
                 BlockInfo blockInfo = new BlockInfo();
                 if (iter.value() != null) {
@@ -137,7 +137,7 @@ public class SnapshotStoreImpl implements SnapshotStore {
                         blockInfo.setSnapshot(true);
                         save(iter, blockInfo);
                     } else { // Storage block data without public key and balance
-                        if ((blockInfo.getAmount() != null && compareAmountTo(blockInfo.getAmount(), XAmount.ZERO) != 0)) {
+                        if ((blockInfo.getAmount() != null && compareAmountTo(blockInfo.getAmount(), XAmount.ZERO) != 0)) {//主块走这个逻辑，目前来看，非主块在做快照时，snapShotInfo为空
 //                        if (blockInfo.getAmount() != 0) {
                             blockInfo.setSnapshot(true);
                             blockInfo.setSnapshotInfo(new SnapshotInfo(false, blockSource.get(
@@ -158,10 +158,10 @@ public class SnapshotStoreImpl implements SnapshotStore {
             log.error(e.getMessage(), e);
         }
 
-        byte[] preSeed = snapshotSource.get(new byte[]{SNAPSHOT_PRESEED});
+        byte[] preSeed = snapshotSource.get(new byte[]{SNAPSHOT_PRESEED});//是不是拿上一次做快照的种子
         snapshotSource.put(new byte[]{SNAPSHOT_PRESEED}, preSeed);
     }
-
+    //将"SNAPSHOT/BLOCKS"里面的完整的blockInfo信息，存入blockStore，如果是自己出的块则改其标志位再存，再将这些区块做成区块引用，类型做为XDAG_FIELD_SNAPSHOT，存入了交易历史中，再顺手把区块里的总金额算出来了，以及属于自己的区块里的金额
     public void saveSnapshotToIndex(BlockStore blockStore, TransactionHistoryStore txHistoryStore, List<KeyPair> keys,long snapshotTime) {
         try (RocksIterator iter = snapshotSource.getDb().newIterator()) {
             for (iter.seekToFirst(); iter.isValid(); iter.next()) {
@@ -195,7 +195,7 @@ public class SnapshotStoreImpl implements SnapshotStore {
                             } else {    //Verify signature
                                 Block block = new Block(new XdagBlock(snapshotInfo.getData()));
                                 SECPSignature outSig = block.getOutsig();
-                                for (int i = 0; i < keys.size(); i++) {
+                                for (int i = 0; i < keys.size(); i++) {//验证主块是不是我们的，签名验证通过，则改标志位，加余额
                                     KeyPair keyPair = keys.get(i);
                                     byte[] publicKeyBytes = keyPair.getPublicKey().asEcPoint(Sign.CURVE).getEncoded(true);
                                     Bytes digest = Bytes
@@ -244,14 +244,14 @@ public class SnapshotStoreImpl implements SnapshotStore {
         }
     }
 
-
+    //用"SNAPSHOT/ADDRESS"里的完整地址引用数据，更新地址引用db，并将这些地址引用，存为交易历史，类型XDAG_FIELD_SNAPSHOT，顺手计算了本钱包的余额，以及全网账户总余额
     @Override
-    public void saveAddress(BlockStore blockStore, AddressStore addressStore, TransactionHistoryStore txHistoryStore, List<KeyPair> keys, long snapshotTime) {
+    public void saveAddress(BlockStore blockStore, AddressStore addressStore, TransactionHistoryStore txHistoryStore, List<KeyPair> keys, long snapshotTime) {//这里没用到blockStore，传进来干嘛？
         try (RocksIterator iter = snapshotSource.getDb().newIterator()) {
-            for (iter.seekToFirst(); iter.isValid(); iter.next()) {
+            for (iter.seekToFirst(); iter.isValid(); iter.next()) {//"SNAPSHOT/ADDRESS"
                 if (iter.key().length < 20) {
                     if (iter.key()[0] == ADDRESS_SIZE) {
-                        addressStore.saveAddressSize(iter.value());
+                        addressStore.saveAddressSize(iter.value());//①
                     }
                 } else {
                     byte[] address = iter.key();
@@ -265,7 +265,7 @@ public class SnapshotStoreImpl implements SnapshotStore {
                     }
                     allBalance = allBalance.add(balance); //calculate the address balance
                     addressStore.snapshotAddress(address, balance);
-                    if (txHistoryStore != null) {
+                    if (txHistoryStore != null) {//将这些地址引用，存为交易历史，类型XDAG_FIELD_SNAPSHOT
                         XdagField.FieldType fieldType = XdagField.FieldType.XDAG_FIELD_SNAPSHOT;
                         Address addr = new Address(BytesUtils.arrayToByte32(Arrays.copyOfRange(address, 1, 21)),
                                 fieldType, balance, true);
@@ -280,7 +280,7 @@ public class SnapshotStoreImpl implements SnapshotStore {
             }
             System.out.println("amount in address: " + allBalance.toDecimal(9, XUnit.XDAG).toPlainString());
             //sava Address all Balance as AMOUNT_SUM
-            addressStore.savaAmountSum(allBalance);
+            addressStore.savaAmountSum(allBalance);//全网账户地址里的余额总和
         }
     }
 
@@ -291,7 +291,7 @@ public class SnapshotStoreImpl implements SnapshotStore {
         } catch (SerializationException e) {
             log.error(e.getMessage(), e);
         }
-        snapshotSource.put(iter.key(), value);
+        snapshotSource.put(iter.key(), value);//HASH_BLOCK_INFO(一个字节)+hashLow(32字节) -> block data
     }
 
     public Object deserialize(final byte[] bytes, Class<?> type) throws DeserializationException {
